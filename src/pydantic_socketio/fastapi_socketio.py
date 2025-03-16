@@ -19,7 +19,8 @@ class FastAPISocketIO(AsyncServer):
         socketio_path: str = "socket.io",
         **kwargs,
     ) -> None:
-        super().__init__(async_mode="asgi", **kwargs)
+        # disable socketio CORS handling and let fastapi CORS handle it
+        super().__init__(cors_allowed_origins=[], async_mode="asgi", **kwargs)
         self.sio_app = ASGIApp(socketio_server=self, socketio_path=socketio_path)
         self.socketio_path = socketio_path
         if app:
