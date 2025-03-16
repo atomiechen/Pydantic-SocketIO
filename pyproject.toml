@@ -7,6 +7,11 @@ authors = [
     { name = "Atomie CHEN", email = "atomic_cwh@163.com" }
 ]
 requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
 keywords = ["pydantic", "socketio", "fastapi"]
 dependencies = [
     "pydantic>=2.10.6",
