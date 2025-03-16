@@ -10,3 +10,7 @@ from .pydantic_socketio import (
     AsyncServer as AsyncServer,
     monkey_patch as monkey_patch,
 )
+
+from .fastapi_socketio import (
+    FastAPISocketIO as FastAPISocketIO,
+)
