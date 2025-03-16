@@ -18,6 +18,20 @@ homepage = "https://github.com/atomiechen/Pydantic-SocketIO"
 issues = "https://github.com/atomiechen/Pydantic-SocketIO/issues"
 changelog = "https://github.com/atomiechen/Pydantic-SocketIO/blob/main/CHANGELOG.md"
 
+[project.optional-dependencies]
+fastapi = [
+    "fastapi[standard]>=0.115.11",
+]
+client = [
+    "python-socketio[client]>=5.12.1",
+]
+asyncio-client = [
+    "python-socketio[asyncio-client]>=5.12.1",
+]
+docs = [
+    "python-socketio[docs]>=5.12.1",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -25,6 +39,7 @@ build-backend = "hatchling.build"
 [dependency-groups]
 dev = [
     "eventlet>=0.39.1",
+    "fastapi[standard]>=0.115.11",
     "python-socketio[client]>=5.12.1",
     "ruff>=0.11.0",
 ]
