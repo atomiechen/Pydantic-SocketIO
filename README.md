@@ -119,7 +119,7 @@ async def ping(data: int):
 ...
 ```
 
-You can also mount the SocketIO server manually after FastAPI initialization:
+You can also integrate the SocketIO server manually after FastAPI initialization:
 
 ```python
 from fastapi import FastAPI
@@ -129,8 +129,9 @@ sio = FastAPISocketIO()
 ...
 app = FastAPI()
 ...
-# Mount the SocketIO server to FastAPI
-sio.mount_to(app)
+
+# Integrate the SocketIO server to FastAPI
+sio.integrate(app)
 ```
 
 ## License
