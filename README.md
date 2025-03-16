@@ -1,5 +1,9 @@
 # Pydantic-SocketIO
 
+[![GitHub](https://img.shields.io/badge/github-Pydantic--SocketIO-blue?logo=github)](https://github.com/atomiechen/Pydantic-SocketIO)
+[![PyPI](https://img.shields.io/pypi/v/Pydantic--SocketIO?logo=pypi&logoColor=white)](https://pypi.org/project/pydantic-socketio/)
+
+
 A Pydantic-enhanced SocketIO library for Python, with FastAPI integration.
 
 
@@ -133,6 +137,12 @@ app = FastAPI()
 # Integrate the SocketIO server to FastAPI
 sio.integrate(app)
 ```
+
+
+## Original Documentation
+
+More details can be found in the original [python-socketio documentation](https://python-socketio.readthedocs.io/en/stable/).
+
 
 ## License
 
