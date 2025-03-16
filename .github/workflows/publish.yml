@@ -1,0 +1,76 @@
+name: Publish Python 🐍 distributions 📦
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_testpypi:
+        type: boolean
+        default: false
+        description: Publish to TestPyPI
+      publish_pypi:
+        type: boolean
+        default: false
+        description: Publish to PyPI
+      publish_gh_release:
+        type: boolean
+        default: true
+        description: Publish to GitHub Release
+      use_changelog:
+        type: boolean
+        default: true
+        description: Extract release notes from CHANGELOG.md
+      changelog_file:
+        type: string
+        default: CHANGELOG.md
+        description: Path to changelog file
+        required: false
+      release_tag:
+        type: string
+        description: Tag to package (empty for latest tag)
+        required: false
+
+jobs:
+  get-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.set_release_tag.outputs.tag }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    - name: Fetch all tags
+      run: |
+        git fetch --prune --unshallow --tags
+    - name: Verify and set release tag
+      id: set_release_tag
+      run: |
+        release_tag=${{ inputs.release_tag }}
+        if [ -z "$release_tag" ]; then
+          echo "Input tag is empty. Fetching latest tag."
+          release_tag=$(git describe --tags $(git rev-list --tags --max-count=1))
+          if [ -z "$release_tag" ]; then
+            echo "No latest tag available. Exiting workflow."
+            exit 1
+          fi
+        else
+          if ! git rev-parse -q --verify "refs/tags/$release_tag" >/dev/null; then
+            echo "Invalid tag '$release_tag'. Exiting workflow."
+            exit 1
+          fi
+        fi
+        echo "tag=$release_tag" >> $GITHUB_OUTPUT
+  build-n-publish:
+    needs: get-tag
+    permissions:
+      id-token: write  # IMPORTANT: mandatory for trusted publishing and sigstore
+      contents: write  # IMPORTANT: mandatory for making GitHub Releases
+    uses: atomiechen/reusable-workflows/.github/workflows/publish-python-distributions.yml@main
+    with:
+      publish_testpypi: ${{ inputs.publish_testpypi }}
+      publish_pypi: ${{ inputs.publish_pypi }}
+      publish_gh_release: ${{ inputs.publish_gh_release }}
+      use_changelog: ${{ inputs.use_changelog }}
+      changelog_file: ${{ inputs.changelog_file }}
+      release_tag: ${{ needs.get-tag.outputs.release_tag }}
+    secrets:
+      TEST_PYPI_API_TOKEN: ${{ secrets.TEST_PYPI_API_TOKEN }}
+      PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
