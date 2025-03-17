@@ -1,4 +1,6 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Annotated, Optional
+
+from fastapi import Depends, HTTPException, Request
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -38,3 +40,17 @@ class FastAPISocketIO(AsyncServer):
         app.mount("/" + self.socketio_path, self.sio_app)
         app.state.sio = self
         self.fastapi_app = app
+
+
+async def get_sio(request: Request) -> FastAPISocketIO:
+    app: "FastAPI" = request.app
+    try:
+        sio = app.state.sio
+    except AttributeError:
+        sio = None
+    if not isinstance(sio, FastAPISocketIO):
+        raise HTTPException(status_code=500, detail="Internal server error")
+    return sio
+
+
+SioDep = Annotated[FastAPISocketIO, Depends(get_sio)]

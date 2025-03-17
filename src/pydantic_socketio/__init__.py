@@ -13,4 +13,5 @@ from .pydantic_socketio import (
 
 from .fastapi_socketio import (
     FastAPISocketIO as FastAPISocketIO,
+    SioDep as SioDep,
 )
