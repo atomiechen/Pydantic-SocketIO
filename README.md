@@ -20,6 +20,14 @@ A Pydantic-enhanced SocketIO library for Python, with FastAPI integration.
 pip install pydantic-socketio
 ```
 
+If you want FastAPI integration, you can install the extra dependencies:
+
+```sh
+pip install pydantic-socketio[fastapi]
+```
+
+Other options of original [python-socketio](https://github.com/miguelgrinberg/python-socketio) are also available: `client`, `asyncio-client`, `docs`.
+
 
 ## Usage
 
