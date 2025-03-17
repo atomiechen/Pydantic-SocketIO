@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from pydantic_socketio import FastAPISocketIO
+from pydantic_socketio import FastAPISocketIO, SioDep
 
 
 app = FastAPI()
@@ -14,18 +14,20 @@ class Data(BaseModel):
 
 
 @app.get("/")
-async def read_root():
+async def read_root(sio: SioDep):
+    print(type(sio))
+    await sio.emit("misc", Data(value=666, description="API root called"))
     return {"Hello": "World"}
 
 
 @sio.on("connect")
-async def connect(sid: str, environ):
-    print("connect ", sid)
+def connect(sid: str, environ):
+    print("==== connect ", sid)
 
 
 @sio.on("disconnect")
 async def disconnect(sid: str):
-    print("disconnect ", sid)
+    print("==== disconnect ", sid)
 
 
 @sio.on("misc")
