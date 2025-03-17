@@ -147,6 +147,25 @@ sio.integrate(app)
 ```
 
 
+### FastAPI Dependency Injection
+
+You can use `SioDep` as a `FastAPISocketIO` dependency injection in FastAPI applications:
+
+```python
+from fastapi import FastAPI
+from pydantic_socketio import FastAPISocketIO, SioDep
+
+app = FastAPI()
+sio = FastAPISocketIO(app)
+
+# You may define this endpoint in another file, like in a separate router
+@app.get("/")
+async def root(sio: SioDep):
+    await sio.emit("message", "API root called")
+    return {"Hello": "World"}
+```
+
+
 ## Original Documentation
 
 More details can be found in the original [python-socketio documentation](https://python-socketio.readthedocs.io/en/stable/).
