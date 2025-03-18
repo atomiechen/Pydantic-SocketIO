@@ -128,7 +128,11 @@ async def ping(data: int):
     data += 1
     print(f"Sending pong: {data}")
     await sio.emit("pong", data)
-...
+
+# Both sync and async event handlers are supported, as per the original python-socketio
+@sio.on("custom_event")
+def handle_custom_event(data: int):
+    ...
 ```
 
 You can also integrate the SocketIO server manually after FastAPI initialization:
