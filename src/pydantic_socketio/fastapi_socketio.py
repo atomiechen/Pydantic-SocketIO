@@ -1,9 +1,6 @@
-from typing import TYPE_CHECKING, Annotated, Optional
+from typing import Annotated, Optional
 
-from fastapi import Depends, HTTPException, Request
-
-if TYPE_CHECKING:
-    from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException, Request
 
 from . import AsyncServer, ASGIApp
 
@@ -17,7 +14,7 @@ class FastAPISocketIO(AsyncServer):
 
     def __init__(
         self,
-        app: Optional["FastAPI"] = None,
+        app: Optional[FastAPI] = None,
         socketio_path: str = "socket.io",
         **kwargs,
     ) -> None:
@@ -27,7 +24,7 @@ class FastAPISocketIO(AsyncServer):
         if app:
             self.integrate(app)
 
-    def integrate(self, app: "FastAPI"):
+    def integrate(self, app: FastAPI):
         """Integrate the FastAPISocketIO server with a FastAPI app."""
         try:
             from fastapi import FastAPI
@@ -43,7 +40,7 @@ class FastAPISocketIO(AsyncServer):
 
 
 async def get_sio(request: Request) -> FastAPISocketIO:
-    app: "FastAPI" = request.app
+    app: FastAPI = request.app
     try:
         sio = app.state.sio
     except AttributeError:

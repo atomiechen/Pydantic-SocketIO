@@ -11,7 +11,12 @@ from .pydantic_socketio import (
     monkey_patch as monkey_patch,
 )
 
-from .fastapi_socketio import (
-    FastAPISocketIO as FastAPISocketIO,
-    SioDep as SioDep,
-)
+# import only if fastapi is installed
+try:
+    import fastapi  # noqa: F401
+    from .fastapi_socketio import (
+        FastAPISocketIO as FastAPISocketIO,
+        SioDep as SioDep,
+    )
+except ImportError:
+    pass
