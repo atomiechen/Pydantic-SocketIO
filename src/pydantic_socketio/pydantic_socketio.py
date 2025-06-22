@@ -1,15 +1,18 @@
 import functools
 import inspect
 import logging
-from typing import Any, Callable, Optional, Type, overload
+from typing import Any, Callable, Literal, Optional, Type, Union
 
 from pydantic import TypeAdapter, validate_call, ValidationError
 from pydantic_core import to_jsonable_python
+from pydantic_socketio.types import JsonModule
 from socketio import (
     AsyncServer as OldAsyncServer,
+    Manager,
     Server as OldServer,
     Client as OldClient,
     AsyncClient as OldAsyncClient,
+    packet,
 )
 from socketio.base_server import BaseServer as OldBaseServer
 from socketio.base_client import BaseClient as OldBaseClient
@@ -108,8 +111,7 @@ class PydanticSioToolset:
         self,
         event: str,
         handler: Optional[Callable] = None,
-        *args,
-        **kwargs,
+        namespace: Optional[str] = None,
     ) -> Callable:
         if handler is None:
             # invoked as a decorator
@@ -118,12 +120,17 @@ class PydanticSioToolset:
                 old_on=self._old_on,
                 self=self,
                 event=event,
-                *args,
-                **kwargs,
+                namespace=namespace,
             )
         else:
             # not invoked as a decorator, but as a function
-            return _wrapper(handler, self._old_on, self, event, *args, **kwargs)
+            return _wrapper(
+                handler=handler,
+                old_on=self._old_on,
+                self=self,
+                event=event,
+                namespace=namespace,
+            )
 
     def schema(self):
         """Return the event schema of the server."""
@@ -134,136 +141,208 @@ class PydanticSioToolset:
 class Server(PydanticSioToolset, OldServer):
     """Server with pydantic validation and data conversion."""
 
-    @overload
     def __init__(
         self,
-        client_manager=None,
-        logger=False,
-        serializer="default",
-        json=None,
-        async_handlers=True,
-        always_connect=False,
-        namespaces=None,
+        client_manager: Optional[Manager] = None,
+        logger: bool = False,
+        serializer: Union[
+            Literal["default", "pickle", "msgpack", "cbor"], packet.Packet
+        ] = "default",
+        json: Optional[JsonModule] = None,
+        async_handlers: bool = True,
+        always_connect: bool = False,
+        namespaces: Optional[Union[list[str], Literal["*"]]] = None,
         **kwargs,
-    ): ...
-
-    @overload
-    def __init__(self, *args, **kwargs): ...
-
-    def __init__(self, *args, **kwargs):
-        _old_server_init(self, *args, **kwargs)
+    ):
+        _old_server_init(
+            self,
+            client_manager=client_manager,
+            logger=logger,
+            serializer=serializer,  # type: ignore
+            json=json,
+            async_handlers=async_handlers,
+            always_connect=always_connect,
+            namespaces=namespaces,
+            **kwargs,
+        )
         PydanticSioToolset.__init__(self, _old_server_on)
 
     def emit(
         self,
         event: str,
         data: Any = None,
-        to: Optional[str] = None,
-        *args,
-        **kwargs,
+        to: Optional[Union[str, list[str]]] = None,
+        room: Optional[Union[str, list[str]]] = None,
+        skip_sid: Optional[Union[str, list[str]]] = None,
+        namespace: Optional[str] = None,
+        callback: Optional[Callable] = None,
+        ignore_queue: bool = False,
     ):
         self.validate_emit(event, data)
         return _old_server_emit(
-            self, event=event, data=to_jsonable_python(data), to=to, *args, **kwargs
+            self,
+            event=event,
+            data=to_jsonable_python(data),
+            to=to,
+            room=room,
+            skip_sid=skip_sid,
+            namespace=namespace,
+            callback=callback,
+            ignore_queue=ignore_queue,
         )
 
 
 class AsyncServer(PydanticSioToolset, OldAsyncServer):
     """AsyncServer with pydantic validation and data conversion."""
 
-    @overload
     def __init__(
         self,
-        client_manager=None,
-        logger=False,
-        serializer="default",
-        json=None,
-        async_handlers=True,
-        always_connect=False,
-        namespaces=None,
+        client_manager: Optional[Manager] = None,
+        logger: bool = False,
+        serializer: Union[
+            Literal["default", "pickle", "msgpack", "cbor"], packet.Packet
+        ] = "default",
+        json: Optional[JsonModule] = None,
+        async_handlers: bool = True,
+        always_connect: bool = False,
+        namespaces: Optional[Union[list[str], Literal["*"]]] = None,
         **kwargs,
-    ): ...
-
-    @overload
-    def __init__(self, *args, **kwargs): ...
-
-    def __init__(self, *args, **kwargs):
-        _old_server_init_async(self, *args, **kwargs)
+    ):
+        _old_server_init_async(
+            self,
+            client_manager=client_manager,
+            logger=logger,
+            serializer=serializer,  # type: ignore
+            json=json,
+            async_handlers=async_handlers,
+            always_connect=always_connect,
+            namespaces=namespaces,
+            **kwargs,
+        )
         PydanticSioToolset.__init__(self, _old_server_on)
 
     async def emit(
         self,
         event: str,
         data: Any = None,
-        to: Optional[str] = None,
-        *args,
-        **kwargs,
+        to: Optional[Union[str, list[str]]] = None,
+        room: Optional[Union[str, list[str]]] = None,
+        skip_sid: Optional[Union[str, list[str]]] = None,
+        namespace: Optional[str] = None,
+        callback: Optional[Callable] = None,
+        ignore_queue: bool = False,
     ):
         self.validate_emit(event, data)
         return await _old_server_emit_async(
-            self, event=event, data=to_jsonable_python(data), to=to, *args, **kwargs
+            self,
+            event=event,
+            data=to_jsonable_python(data),
+            to=to,
+            room=room,
+            skip_sid=skip_sid,
+            namespace=namespace,
+            callback=callback,
+            ignore_queue=ignore_queue,
         )
 
 
 class Client(PydanticSioToolset, OldClient):
     """Client with pydantic validation and data conversion."""
 
-    @overload
     def __init__(
         self,
-        reconnection=True,
-        reconnection_attempts=0,
-        reconnection_delay=1,
-        reconnection_delay_max=5,
-        randomization_factor=0.5,
-        logger=False,
-        serializer="default",
-        json=None,
-        handle_sigint=True,
+        reconnection: bool = True,
+        reconnection_attempts: int = 0,
+        reconnection_delay: int = 1,
+        reconnection_delay_max: int = 5,
+        randomization_factor: float = 0.5,
+        logger: Union[bool, logging.Logger] = False,
+        serializer: Union[
+            Literal["default", "pickle", "msgpack", "cbor"], packet.Packet
+        ] = "default",
+        json: Optional[JsonModule] = None,
+        handle_sigint: bool = True,
         **kwargs,
-    ): ...
-
-    @overload
-    def __init__(self, *args, **kwargs): ...
-
-    def __init__(self, *args, **kwargs):
-        _old_client_init(self, *args, **kwargs)
+    ):
+        _old_client_init(
+            self,
+            reconnection=reconnection,
+            reconnection_attempts=reconnection_attempts,
+            reconnection_delay=reconnection_delay,
+            reconnection_delay_max=reconnection_delay_max,
+            randomization_factor=randomization_factor,
+            logger=logger,  # type: ignore
+            serializer=serializer,  # type: ignore
+            json=json,
+            handle_sigint=handle_sigint,
+            **kwargs,
+        )
         PydanticSioToolset.__init__(self, _old_client_on)
 
-    def emit(self, event: str, data: Any = None, *args, **kwargs):
+    def emit(
+        self,
+        event: str,
+        data: Any = None,
+        namespace: Optional[str] = None,
+        callback: Optional[Callable] = None,
+    ):
         self.validate_emit(event, data)
-        return _old_client_emit(self, event, to_jsonable_python(data), *args, **kwargs)
+        return _old_client_emit(
+            self,
+            event=event,
+            data=to_jsonable_python(data),
+            namespace=namespace,
+            callback=callback,
+        )
 
 
 class AsyncClient(PydanticSioToolset, OldAsyncClient):
     """AsyncClient with pydantic validation and data conversion."""
 
-    @overload
     def __init__(
         self,
-        reconnection=True,
-        reconnection_attempts=0,
-        reconnection_delay=1,
-        reconnection_delay_max=5,
-        randomization_factor=0.5,
-        logger=False,
-        serializer="default",
-        json=None,
-        handle_sigint=True,
+        reconnection: bool = True,
+        reconnection_attempts: int = 0,
+        reconnection_delay: int = 1,
+        reconnection_delay_max: int = 5,
+        randomization_factor: float = 0.5,
+        logger: Union[bool, logging.Logger] = False,
+        serializer: Union[
+            Literal["default", "pickle", "msgpack", "cbor"], packet.Packet
+        ] = "default",
+        json: Optional[JsonModule] = None,
+        handle_sigint: bool = True,
         **kwargs,
-    ): ...
-
-    @overload
-    def __init__(self, *args, **kwargs): ...
-
-    def __init__(self, *args, **kwargs):
-        _old_client_init_async(self, *args, **kwargs)
+    ):
+        _old_client_init_async(
+            self,
+            reconnection=reconnection,
+            reconnection_attempts=reconnection_attempts,
+            reconnection_delay=reconnection_delay,
+            reconnection_delay_max=reconnection_delay_max,
+            randomization_factor=randomization_factor,
+            logger=logger,  # type: ignore
+            serializer=serializer,  # type: ignore
+            json=json,
+            handle_sigint=handle_sigint,
+            **kwargs,
+        )
         PydanticSioToolset.__init__(self, _old_client_on)
 
-    async def emit(self, event: str, data: Any = None, *args, **kwargs):
+    async def emit(
+        self,
+        event: str,
+        data: Any = None,
+        namespace: Optional[str] = None,
+        callback: Optional[Callable] = None,
+    ):
         self.validate_emit(event, data)
         return await _old_client_emit_async(
-            self, event, to_jsonable_python(data), *args, **kwargs
+            self,
+            event=event,
+            data=to_jsonable_python(data),
+            namespace=namespace,
+            callback=callback,
         )
 
 
