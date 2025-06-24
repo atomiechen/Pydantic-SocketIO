@@ -80,8 +80,8 @@ def _wrapper(
 class PydanticSioToolset:
     """A toolset for pydantic validation and conversion for socketio."""
 
-    def __init__(self, old_on: Callable):
-        self._EMIT_EVENT_TYPES = {}
+    def __init__(self, old_on: Callable, role: Literal["server", "client"]):
+        self._EMIT_EVENT_TYPES: dict[str, Type] = {}
         self._old_on = old_on
 
     def register_emit(self, event: str, payload_type: Optional[Type] = None):
@@ -165,7 +165,7 @@ class Server(PydanticSioToolset, OldServer):
             namespaces=namespaces,
             **kwargs,
         )
-        PydanticSioToolset.__init__(self, _old_server_on)
+        PydanticSioToolset.__init__(self, _old_server_on, "server")
 
     def emit(
         self,
@@ -219,7 +219,7 @@ class AsyncServer(PydanticSioToolset, OldAsyncServer):
             namespaces=namespaces,
             **kwargs,
         )
-        PydanticSioToolset.__init__(self, _old_server_on)
+        PydanticSioToolset.__init__(self, _old_server_on, "server")
 
     async def emit(
         self,
@@ -277,7 +277,7 @@ class Client(PydanticSioToolset, OldClient):
             handle_sigint=handle_sigint,
             **kwargs,
         )
-        PydanticSioToolset.__init__(self, _old_client_on)
+        PydanticSioToolset.__init__(self, _old_client_on, "client")
 
     def emit(
         self,
@@ -327,7 +327,7 @@ class AsyncClient(PydanticSioToolset, OldAsyncClient):
             handle_sigint=handle_sigint,
             **kwargs,
         )
-        PydanticSioToolset.__init__(self, _old_client_on)
+        PydanticSioToolset.__init__(self, _old_client_on, "client")
 
     async def emit(
         self,
