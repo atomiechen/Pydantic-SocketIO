@@ -1,7 +1,7 @@
 import functools
 import inspect
 import logging
-from typing import Any, Callable, Literal, Optional, Type, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Type, Union
 
 from pydantic import TypeAdapter, validate_call, ValidationError
 from pydantic_core import to_jsonable_python
@@ -81,7 +81,7 @@ class PydanticSioToolset:
     """A toolset for pydantic validation and conversion for socketio."""
 
     def __init__(self, old_on: Callable, role: Literal["server", "client"]):
-        self._EMIT_EVENT_TYPES: dict[str, Type] = {}
+        self._EMIT_EVENT_TYPES: Dict[str, Type] = {}
         self._old_on = old_on
 
     def register_emit(self, event: str, payload_type: Optional[Type] = None):
@@ -151,7 +151,7 @@ class Server(PydanticSioToolset, OldServer):
         json: Optional[JsonModule] = None,
         async_handlers: bool = True,
         always_connect: bool = False,
-        namespaces: Optional[Union[list[str], Literal["*"]]] = None,
+        namespaces: Optional[Union[List[str], Literal["*"]]] = None,
         **kwargs,
     ):
         _old_server_init(
@@ -171,9 +171,9 @@ class Server(PydanticSioToolset, OldServer):
         self,
         event: str,
         data: Any = None,
-        to: Optional[Union[str, list[str]]] = None,
-        room: Optional[Union[str, list[str]]] = None,
-        skip_sid: Optional[Union[str, list[str]]] = None,
+        to: Optional[Union[str, List[str]]] = None,
+        room: Optional[Union[str, List[str]]] = None,
+        skip_sid: Optional[Union[str, List[str]]] = None,
         namespace: Optional[str] = None,
         callback: Optional[Callable] = None,
         ignore_queue: bool = False,
@@ -205,7 +205,7 @@ class AsyncServer(PydanticSioToolset, OldAsyncServer):
         json: Optional[JsonModule] = None,
         async_handlers: bool = True,
         always_connect: bool = False,
-        namespaces: Optional[Union[list[str], Literal["*"]]] = None,
+        namespaces: Optional[Union[List[str], Literal["*"]]] = None,
         **kwargs,
     ):
         _old_server_init_async(
@@ -225,9 +225,9 @@ class AsyncServer(PydanticSioToolset, OldAsyncServer):
         self,
         event: str,
         data: Any = None,
-        to: Optional[Union[str, list[str]]] = None,
-        room: Optional[Union[str, list[str]]] = None,
-        skip_sid: Optional[Union[str, list[str]]] = None,
+        to: Optional[Union[str, List[str]]] = None,
+        room: Optional[Union[str, List[str]]] = None,
+        skip_sid: Optional[Union[str, List[str]]] = None,
         namespace: Optional[str] = None,
         callback: Optional[Callable] = None,
         ignore_queue: bool = False,
