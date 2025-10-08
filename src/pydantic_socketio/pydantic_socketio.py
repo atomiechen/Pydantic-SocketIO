@@ -5,7 +5,6 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Type, Union
 
 from pydantic import TypeAdapter, validate_call, ValidationError
 from pydantic_core import to_jsonable_python
-from pydantic_socketio.types import JsonModule
 from socketio import (
     AsyncServer as OldAsyncServer,
     Manager,
@@ -16,6 +15,8 @@ from socketio import (
 )
 from socketio.base_server import BaseServer as OldBaseServer
 from socketio.base_client import BaseClient as OldBaseClient
+
+from .types import JsonModule
 
 
 # Save the original functions
