@@ -1,6 +1,7 @@
-from typing import Annotated, Optional
+from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from typing_extensions import Annotated
 
 from . import AsyncServer, ASGIApp
 

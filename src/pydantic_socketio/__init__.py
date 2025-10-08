@@ -11,10 +11,11 @@ from .pydantic_socketio import (
 
 # import only if fastapi is installed
 try:
-    import fastapi  # noqa: F401
+    import fastapi as _fastapi  # noqa: F401
+except ImportError:
+    pass
+else:
     from .fastapi_socketio import (
         FastAPISocketIO as FastAPISocketIO,
         SioDep as SioDep,
     )
-except ImportError:
-    pass
