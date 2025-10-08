@@ -1,0 +1,69 @@
+name: Test Python Package 🔧
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_call:
+    inputs:
+      release_tag:
+        type: string
+        required: false
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        type: string
+        description: Tag to package (empty for latest commit)
+        required: false
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Checkout to release tag if provided
+      if: ${{ inputs.release_tag }}
+      run: |
+        echo "Checking out to release tag ${{ inputs.release_tag }}"
+        git fetch --prune --unshallow --tags
+        git checkout ${{ inputs.release_tag }}
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        enable-cache: true
+    - name: Install dependencies (with optional extras)
+      # ref: https://docs.astral.sh/uv/guides/integration/github/#syncing-and-running
+      run: |
+        uv sync --locked --all-extras
+      #   python -m pip install --upgrade pip
+      #   pip install -r requirements.txt
+    - name: Activate venv and store path (Windows)
+      # ref: https://stackoverflow.com/a/74669486/11854304
+      # ref: https://stackoverflow.com/a/72926104/11854304
+      if: runner.os == 'Windows'
+      run: |
+        .venv\Scripts\activate
+        echo PATH=$PATH >> $GITHUB_ENV
+    - name: Activate venv and store path (Linux/Mac)
+      # ref: https://stackoverflow.com/a/74669486/11854304
+      # ref: https://stackoverflow.com/a/72926104/11854304
+      if: runner.os != 'Windows'
+      run: |
+        source .venv/bin/activate
+        echo PATH=$PATH >> $GITHUB_ENV
+    - name: Lint
+      run: |
+        ./scripts/lint.sh
+    - name: Test
+      run: |
+        ./scripts/test.sh

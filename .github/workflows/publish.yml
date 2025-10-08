@@ -58,8 +58,13 @@ jobs:
           fi
         fi
         echo "tag=$release_tag" >> $GITHUB_OUTPUT
-  build-n-publish:
+  test:
     needs: get-tag
+    uses: ./.github/workflows/test.yml
+    with:
+      release_tag: ${{ needs.get-tag.outputs.release_tag }}
+  build-n-publish:
+    needs: test
     permissions:
       id-token: write  # IMPORTANT: mandatory for trusted publishing and sigstore
       contents: write  # IMPORTANT: mandatory for making GitHub Releases
