@@ -43,8 +43,8 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
-    "eventlet>=0.39.1",
     "fastapi[standard]>=0.115.11",
+    "gunicorn>=23.0.0",
     "pytest>=8.3.5",
     "pytest-cov>=5.0.0",
     "python-socketio[client]>=5.12.1",

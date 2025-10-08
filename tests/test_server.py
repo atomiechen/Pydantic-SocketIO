@@ -1,5 +1,3 @@
-import select  # for macos python 3.9 # noqa
-import eventlet
 from pydantic import BaseModel
 import socketio
 import pydantic_socketio
@@ -8,10 +6,10 @@ import pydantic_socketio
 # pydantic_socketio.monkey_patch()
 
 
-def test_server():
+def test_wsgi():
     # create a Socket.IO server
     # sio = socketio.Server()
-    sio = pydantic_socketio.Server()
+    sio = pydantic_socketio.Server(async_mode="threading")
 
     # wrap with a WSGI application
     app = socketio.WSGIApp(sio)
@@ -42,5 +40,28 @@ def test_server():
 
 
 if __name__ == "__main__":
-    app = test_server()
-    eventlet.wsgi.server(eventlet.listen(("", 8000)), app)  # type: ignore
+    from gunicorn.app.wsgiapp import WSGIApplication
+
+    # ref: https://stackoverflow.com/a/73895674/11854304
+    class StandaloneApplication(WSGIApplication):
+        def __init__(self, wsgi_app, options=None):
+            self.options = options or {}
+            super().__init__()
+            self.callable = wsgi_app
+
+        def load_config(self):
+            config = {
+                key: value
+                for key, value in self.options.items()
+                if key in self.cfg.settings and value is not None  # type: ignore
+            }
+            for key, value in config.items():
+                self.cfg.set(key.lower(), value)  # type: ignore
+
+    app = test_wsgi()
+    StandaloneApplication(
+        app,
+        {
+            "bind": "localhost:8000",
+        },
+    ).run()
