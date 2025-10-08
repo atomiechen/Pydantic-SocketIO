@@ -48,7 +48,7 @@ class ChatMessage(BaseModel):
 # Create an enhanced SocketIO server; use AsyncServer for async server
 sio = pydantic_socketio.Server()
 
-# Define an event with Pydantic validation
+# Define a listen event with Pydantic validation
 @sio.event
 def message(data: ChatMessage):
     print(f"Received chat message from {data.role}: {data.content}")
@@ -61,6 +61,14 @@ def message(data: ChatMessage):
 @sio.on("custom_event")
 def handle_custom_event(data: int):
     ...
+
+# Register an emit event with Pydantic validation
+sio.register_emit("message", payload_type=ChatMessage)
+
+# Or, use the decorator form
+@sio.register_emit("misc")
+class MiscData(BaseModel):
+    value: int
 ```
 
 The enhanced SocketIO client with Pydantic validation:
@@ -71,8 +79,14 @@ import pydantic_socketio
 # Create an enhanced SocketIO client; use AsyncClient for async client
 sio = pydantic_socketio.Client()
 
+@sio.register_emit("ping")
+class PingData(BaseModel):
+    value: int
+
+sio.register_emit("pong", payload_type=int)
+
 @sio.event
-def ping(data: int):
+def ping(data: PingData):
     ...
 
 @sio.on("pong")
