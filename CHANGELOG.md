@@ -6,13 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 
 
-## [TODO]
+## [0.1.3] - 2025-10-08
 
 ### Added
 
-- [ ] 支持注册的函数签名自动生成 JSON Schema 文档
-  - 根据函数签名生成 ClientToServerEvents 文档
-  - 要求用户手动 register_emit 注册事件名和参数类型 生成 ServerToClientEvents 文档，可以用装饰器对pydantic model class使用；Optional：运行时校验
+- Support emit event data type validation
+- Better type hint for IDE support
+
+### Fixed
+
+- Fix `Annotated` import issue for python 3.8
 
 
 
