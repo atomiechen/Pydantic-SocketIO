@@ -17,5 +17,6 @@ except ImportError:
 else:
     from .fastapi_socketio import (
         FastAPISocketIO as FastAPISocketIO,
+        get_sio as get_sio,
         SioDep as SioDep,
     )
