@@ -36,6 +36,8 @@ def test_wsgi():
         ret = Data(value=data.value + 1, description="value increased by 1")
         sio.emit("misc", ret)
 
+    sio.register_emit("misc", payload_type=Data)
+
     return app
 
 

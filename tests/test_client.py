@@ -17,6 +17,12 @@ def test_client():
     def misc(data: Data):
         print("==== misc ", data, type(data))
 
+    sio.register_emit("misc", Data)
+
+    @sio.register_emit("misc")
+    class MiscData(BaseModel):
+        value: int
+
     data = Data(value=123, description="test")
     return sio, data
 
