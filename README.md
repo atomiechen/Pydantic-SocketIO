@@ -95,6 +95,41 @@ def handle_pong(data: int):
     ...
 ```
 
+### Typed calls and acknowledgements
+
+`call()` supports the original Socket.IO arguments and an optional
+`response_model`. When it is omitted, the acknowledgement is returned unchanged.
+When supplied, Pydantic validates the acknowledgement and returns the requested
+type. Request data follows the same registered emit validation and model
+serialization as `emit()`.
+
+```python
+from pydantic import BaseModel
+import pydantic_socketio
+
+class Question(BaseModel):
+    value: int
+
+class Answer(BaseModel):
+    value: int
+
+server = pydantic_socketio.AsyncServer(async_mode="asgi")
+
+@server.on("question")
+async def answer(sid: str, data: Question) -> Answer:
+    return Answer(value=data.value + 1)
+
+client = pydantic_socketio.AsyncClient()
+client.register_emit("question", Question)
+# After connecting the client:
+result = await client.call("question", Question(value=3), response_model=Answer)
+assert result == Answer(value=4)
+```
+
+Handler return annotations are validated before their model values are sent as
+acknowledgements. A tuple of return values remains multiple Socket.IO ack
+arguments. The `response_model` can also be a `typing.Union` of response types.
+
 
 ### Alternative: Monkey Patching for Original SocketIO
 

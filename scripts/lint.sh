@@ -3,3 +3,4 @@ set -x
 
 ruff check src tests
 ruff format src tests --check --diff
+pyright

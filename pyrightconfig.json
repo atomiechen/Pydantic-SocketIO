@@ -1,0 +1,5 @@
+{
+  "include": ["tests/typecheck_typed_contract.py"],
+  "pythonVersion": "3.8",
+  "enableExperimentalFeatures": true
+}

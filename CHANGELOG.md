@@ -4,6 +4,13 @@ All notable changes to Pydantic-SocketIO will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- Validate and serialize `call()` request data, and optionally validate its acknowledgement with `response_model`.
+- Validate event handler return annotations and serialize Pydantic model acknowledgements.
+
 
 
 ## [0.1.3] - 2025-10-08

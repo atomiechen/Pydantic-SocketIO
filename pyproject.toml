@@ -16,6 +16,7 @@ keywords = ["pydantic", "socketio", "fastapi"]
 dependencies = [
     "pydantic>=2.10.6",
     "python-socketio>=5.12.1",
+    "typing_extensions>=4.13.0",
 ]
 
 [project.urls]
@@ -47,6 +48,7 @@ dev = [
     "gunicorn>=23.0.0",
     "pytest>=8.3.5",
     "pytest-cov>=5.0.0",
+    "pyright>=1.1.411",
     "python-socketio[client]>=5.12.1",
     "ruff>=0.11.0",
 ]

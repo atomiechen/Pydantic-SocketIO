@@ -1,9 +1,20 @@
 import functools
 import inspect
 import logging
-from typing import Any, Callable, Dict, List, Literal, Optional, Type, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+    overload,
+)
 
-from pydantic import TypeAdapter, validate_call, ValidationError
+from pydantic import BaseModel, TypeAdapter, validate_call, ValidationError
 from pydantic_core import to_jsonable_python
 from socketio import (
     AsyncServer as OldAsyncServer,
@@ -15,6 +26,7 @@ from socketio import (
 )
 from socketio.base_server import BaseServer as OldBaseServer
 from socketio.base_client import BaseClient as OldBaseClient
+from typing_extensions import TypeForm
 
 from .types import JsonModule
 
@@ -24,17 +36,23 @@ _old_server_on = OldBaseServer.on
 
 _old_server_init = OldServer.__init__
 _old_server_emit = OldServer.emit
+_old_server_call = OldServer.call
 
 _old_server_init_async = OldAsyncServer.__init__
 _old_server_emit_async = OldAsyncServer.emit
+_old_server_call_async = OldAsyncServer.call
 
 _old_client_on = OldBaseClient.on
 
 _old_client_init = OldClient.__init__
 _old_client_emit = OldClient.emit
+_old_client_call = OldClient.call
 
 _old_client_init_async = OldAsyncClient.__init__
 _old_client_emit_async = OldAsyncClient.emit
+_old_client_call_async = OldAsyncClient.call
+
+ResponseT = TypeVar("ResponseT")
 
 
 module_logger = logging.getLogger(__name__)
@@ -50,7 +68,9 @@ def _wrapper(
     **kwargs,
 ):
     """Wrap the handler to validate the input using pydantic"""
-    validated_handler = validate_call(handler)
+    validated_handler = validate_call(
+        handler, validate_return=event not in ("connect", "disconnect")
+    )
     if event in ["connect", "disconnect"]:
         # For connect and disconnect events, convert ValidationError
         # to TypeError, so that socketio can handle it properly
@@ -71,11 +91,44 @@ def _wrapper(
                 except ValidationError as e:
                     raise TypeError from e
     else:
-        wrapped_handler = validated_handler  # type: ignore
+        if inspect.iscoroutinefunction(validated_handler):
+
+            @functools.wraps(validated_handler)
+            async def wrapped_handler(*args, **kwargs):  # type: ignore
+                return _serialize_ack(await validated_handler(*args, **kwargs))
+        else:
+
+            @functools.wraps(validated_handler)
+            def wrapped_handler(*args, **kwargs):
+                return _serialize_ack(validated_handler(*args, **kwargs))
 
     # Register the wrapped handler
     old_on(self, event, wrapped_handler, *args, **kwargs)
     return wrapped_handler
+
+
+def _serialize_ack(value: Any) -> Any:
+    """Convert models in an acknowledgement without changing its argument count."""
+    if isinstance(value, tuple):
+        return tuple(_serialize_ack(item) for item in value)
+    if isinstance(value, BaseModel):
+        return to_jsonable_python(value)
+    return value
+
+
+def _serialize_payload(value: Any) -> Any:
+    """Preserve Socket.IO's tuple of arguments while encoding model data."""
+    if isinstance(value, tuple):
+        return tuple(to_jsonable_python(item) for item in value)
+    return to_jsonable_python(value)
+
+
+def _validate_response(
+    value: Any, response_model: Optional[TypeForm[ResponseT]]
+) -> Any:
+    if response_model is None:
+        return value
+    return TypeAdapter(response_model).validate_python(value)
 
 
 class PydanticSioToolset:
@@ -183,7 +236,7 @@ class Server(PydanticSioToolset, OldServer):
         return _old_server_emit(
             self,
             event=event,
-            data=to_jsonable_python(data),
+            data=_serialize_payload(data),
             to=to,
             room=room,
             skip_sid=skip_sid,
@@ -191,6 +244,57 @@ class Server(PydanticSioToolset, OldServer):
             callback=callback,
             ignore_queue=ignore_queue,
         )
+
+    @overload
+    def call(
+        self,
+        event: str,
+        data: Any = None,
+        to: Optional[str] = None,
+        sid: Optional[str] = None,
+        namespace: Optional[str] = None,
+        timeout: float = 60,
+        ignore_queue: bool = False,
+    ) -> Any: ...
+
+    @overload
+    def call(
+        self,
+        event: str,
+        data: Any = None,
+        to: Optional[str] = None,
+        sid: Optional[str] = None,
+        namespace: Optional[str] = None,
+        timeout: float = 60,
+        ignore_queue: bool = False,
+        *,
+        response_model: TypeForm[ResponseT],
+    ) -> ResponseT: ...
+
+    def call(
+        self,
+        event: str,
+        data: Any = None,
+        to: Optional[str] = None,
+        sid: Optional[str] = None,
+        namespace: Optional[str] = None,
+        timeout: float = 60,
+        ignore_queue: bool = False,
+        *,
+        response_model: Optional[TypeForm[ResponseT]] = None,
+    ) -> Any:
+        self.validate_emit(event, data)
+        response = _old_server_call(
+            self,
+            event,
+            data=_serialize_payload(data),
+            to=to,
+            sid=sid,
+            namespace=namespace,
+            timeout=timeout,
+            ignore_queue=ignore_queue,
+        )
+        return _validate_response(response, response_model)
 
 
 class AsyncServer(PydanticSioToolset, OldAsyncServer):
@@ -237,7 +341,7 @@ class AsyncServer(PydanticSioToolset, OldAsyncServer):
         return await _old_server_emit_async(
             self,
             event=event,
-            data=to_jsonable_python(data),
+            data=_serialize_payload(data),
             to=to,
             room=room,
             skip_sid=skip_sid,
@@ -245,6 +349,57 @@ class AsyncServer(PydanticSioToolset, OldAsyncServer):
             callback=callback,
             ignore_queue=ignore_queue,
         )
+
+    @overload
+    async def call(
+        self,
+        event: str,
+        data: Any = None,
+        to: Optional[str] = None,
+        sid: Optional[str] = None,
+        namespace: Optional[str] = None,
+        timeout: float = 60,
+        ignore_queue: bool = False,
+    ) -> Any: ...
+
+    @overload
+    async def call(
+        self,
+        event: str,
+        data: Any = None,
+        to: Optional[str] = None,
+        sid: Optional[str] = None,
+        namespace: Optional[str] = None,
+        timeout: float = 60,
+        ignore_queue: bool = False,
+        *,
+        response_model: TypeForm[ResponseT],
+    ) -> ResponseT: ...
+
+    async def call(
+        self,
+        event: str,
+        data: Any = None,
+        to: Optional[str] = None,
+        sid: Optional[str] = None,
+        namespace: Optional[str] = None,
+        timeout: float = 60,
+        ignore_queue: bool = False,
+        *,
+        response_model: Optional[TypeForm[ResponseT]] = None,
+    ) -> Any:
+        self.validate_emit(event, data)
+        response = await _old_server_call_async(
+            self,
+            event,
+            data=_serialize_payload(data),
+            to=to,
+            sid=sid,
+            namespace=namespace,
+            timeout=timeout,
+            ignore_queue=ignore_queue,
+        )
+        return _validate_response(response, response_model)
 
 
 class Client(PydanticSioToolset, OldClient):
@@ -291,10 +446,49 @@ class Client(PydanticSioToolset, OldClient):
         return _old_client_emit(
             self,
             event=event,
-            data=to_jsonable_python(data),
+            data=_serialize_payload(data),
             namespace=namespace,
             callback=callback,
         )
+
+    @overload
+    def call(
+        self,
+        event: str,
+        data: Any = None,
+        namespace: Optional[str] = None,
+        timeout: float = 60,
+    ) -> Any: ...
+
+    @overload
+    def call(
+        self,
+        event: str,
+        data: Any = None,
+        namespace: Optional[str] = None,
+        timeout: float = 60,
+        *,
+        response_model: TypeForm[ResponseT],
+    ) -> ResponseT: ...
+
+    def call(
+        self,
+        event: str,
+        data: Any = None,
+        namespace: Optional[str] = None,
+        timeout: float = 60,
+        *,
+        response_model: Optional[TypeForm[ResponseT]] = None,
+    ) -> Any:
+        self.validate_emit(event, data)
+        response = _old_client_call(
+            self,
+            event,
+            data=_serialize_payload(data),
+            namespace=namespace,
+            timeout=timeout,
+        )
+        return _validate_response(response, response_model)
 
 
 class AsyncClient(PydanticSioToolset, OldAsyncClient):
@@ -341,10 +535,49 @@ class AsyncClient(PydanticSioToolset, OldAsyncClient):
         return await _old_client_emit_async(
             self,
             event=event,
-            data=to_jsonable_python(data),
+            data=_serialize_payload(data),
             namespace=namespace,
             callback=callback,
         )
+
+    @overload
+    async def call(
+        self,
+        event: str,
+        data: Any = None,
+        namespace: Optional[str] = None,
+        timeout: float = 60,
+    ) -> Any: ...
+
+    @overload
+    async def call(
+        self,
+        event: str,
+        data: Any = None,
+        namespace: Optional[str] = None,
+        timeout: float = 60,
+        *,
+        response_model: TypeForm[ResponseT],
+    ) -> ResponseT: ...
+
+    async def call(
+        self,
+        event: str,
+        data: Any = None,
+        namespace: Optional[str] = None,
+        timeout: float = 60,
+        *,
+        response_model: Optional[TypeForm[ResponseT]] = None,
+    ) -> Any:
+        self.validate_emit(event, data)
+        response = await _old_client_call_async(
+            self,
+            event,
+            data=_serialize_payload(data),
+            namespace=namespace,
+            timeout=timeout,
+        )
+        return _validate_response(response, response_model)
 
 
 def monkey_patch():
@@ -353,6 +586,7 @@ def monkey_patch():
     setattr(OldServer, "__init__", Server.__init__)
     setattr(OldServer, "on", Server.on)
     setattr(OldServer, "emit", Server.emit)
+    setattr(OldServer, "call", Server.call)
     setattr(OldServer, "register_emit", Server.register_emit)
     setattr(OldServer, "validate_emit", Server.validate_emit)
     setattr(OldServer, "schema", Server.schema)
@@ -360,6 +594,7 @@ def monkey_patch():
     setattr(OldAsyncServer, "__init__", AsyncServer.__init__)
     setattr(OldAsyncServer, "on", AsyncServer.on)
     setattr(OldAsyncServer, "emit", AsyncServer.emit)
+    setattr(OldAsyncServer, "call", AsyncServer.call)
     setattr(OldAsyncServer, "register_emit", AsyncServer.register_emit)
     setattr(OldAsyncServer, "validate_emit", AsyncServer.validate_emit)
     setattr(OldAsyncServer, "schema", AsyncServer.schema)
@@ -367,6 +602,7 @@ def monkey_patch():
     setattr(OldClient, "__init__", Client.__init__)
     setattr(OldClient, "on", Client.on)
     setattr(OldClient, "emit", Client.emit)
+    setattr(OldClient, "call", Client.call)
     setattr(OldClient, "register_emit", Client.register_emit)
     setattr(OldClient, "validate_emit", Client.validate_emit)
     setattr(OldClient, "schema", Client.schema)
@@ -374,6 +610,7 @@ def monkey_patch():
     setattr(OldAsyncClient, "__init__", AsyncClient.__init__)
     setattr(OldAsyncClient, "on", AsyncClient.on)
     setattr(OldAsyncClient, "emit", AsyncClient.emit)
+    setattr(OldAsyncClient, "call", AsyncClient.call)
     setattr(OldAsyncClient, "register_emit", AsyncClient.register_emit)
     setattr(OldAsyncClient, "validate_emit", AsyncClient.validate_emit)
     setattr(OldAsyncClient, "schema", AsyncClient.schema)
