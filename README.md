@@ -134,9 +134,13 @@ acknowledgements. A tuple of return values remains multiple Socket.IO ack
 arguments. The `response_model` can also be a `typing.Union` of response types.
 
 
-### Alternative: Monkey Patching for Original Socket.IO
+### Migration: Monkey Patching Original Socket.IO
 
-Alternatively, if you want to apply Pydantic validation to the original [python-socketio](https://github.com/miguelgrinberg/python-socketio) server and client without replacing them, you can use the `monkey_patch()` method:
+If replacing the original [python-socketio](https://github.com/miguelgrinberg/python-socketio)
+constructors is impractical, call `monkey_patch()` before creating any Socket.IO
+server or client instances. It changes the upstream classes throughout the
+process; already-created instances do not have the required validation state.
+For new code, use the enhanced classes above.
 
 ```python
 from pydantic_socketio import monkey_patch

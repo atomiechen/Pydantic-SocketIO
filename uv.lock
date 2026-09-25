@@ -1822,7 +1822,7 @@ provides-extras = ["fastapi", "client", "asyncio-client", "docs"]
 dev = [
     { name = "fastapi", extras = ["standard"], specifier = ">=0.115.11" },
     { name = "gunicorn", specifier = ">=23.0.0" },
-    { name = "pyright", specifier = ">=1.1.411" },
+    { name = "pyright", specifier = ">=1.1.414" },
     { name = "pytest", specifier = ">=8.3.5" },
     { name = "pytest-cov", specifier = ">=5.0.0" },
     { name = "python-socketio", extras = ["client"], specifier = ">=5.12.1" },
