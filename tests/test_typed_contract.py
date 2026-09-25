@@ -189,8 +189,10 @@ class Reply(BaseModel):
 
 pydantic_socketio.monkey_patch()
 client = socketio.Client()
+client.register_emit('ask', Reply, namespace='/chat', ack_type=Reply)
+assert client._operation_contracts
 with patch('pydantic_socketio.pydantic_socketio._old_client_call', return_value={'value': 2}) as original:
-    result = client.call('ask', {'value': 1}, response_model=Reply)
+    result = client.call('ask', {'value': 1}, namespace='/chat', response_model=Reply)
     assert result == Reply(value=2)
     assert original.call_args.kwargs['data'] == {'value': 1}
 """

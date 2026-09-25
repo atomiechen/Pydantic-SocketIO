@@ -4,7 +4,6 @@ import logging
 from typing import (
     Any,
     Callable,
-    Dict,
     List,
     Literal,
     Optional,
@@ -29,6 +28,13 @@ from socketio.base_client import BaseClient as OldBaseClient
 from typing_extensions import TypeForm
 
 from .types import JsonModule
+from ._operation_contract import (
+    UNSPECIFIED,
+    OperationKey,
+    _Unspecified,
+    receive_contract,
+    send_contract,
+)
 
 
 # Save the original functions
@@ -53,6 +59,7 @@ _old_client_emit_async = OldAsyncClient.emit
 _old_client_call_async = OldAsyncClient.call
 
 ResponseT = TypeVar("ResponseT")
+PayloadT = TypeVar("PayloadT")
 
 
 module_logger = logging.getLogger(__name__)
@@ -103,7 +110,9 @@ def _wrapper(
                 return _serialize_ack(validated_handler(*args, **kwargs))
 
     # Register the wrapped handler
+    contract = receive_contract(event, kwargs.get("namespace"), handler, self._role)
     old_on(self, event, wrapped_handler, *args, **kwargs)
+    self._operation_contracts[contract.key] = contract
     return wrapped_handler
 
 
@@ -135,14 +144,59 @@ class PydanticSioToolset:
     """A toolset for pydantic validation and conversion for socketio."""
 
     def __init__(self, old_on: Callable, role: Literal["server", "client"]):
-        self._EMIT_EVENT_TYPES: Dict[str, Type] = {}
+        self._operation_contracts = {}
         self._old_on = old_on
+        self._role = role
 
-    def register_emit(self, event: str, payload_type: Optional[Type] = None):
-        """Decorator to register the payload type for an event."""
+    @overload
+    def register_emit(
+        self,
+        event: str,
+        payload_type: None = None,
+        *,
+        namespace: Optional[str] = None,
+        ack_type: Union[TypeForm[Any], None, _Unspecified] = UNSPECIFIED,
+    ) -> Callable[[Type[PayloadT]], Type[PayloadT]]: ...
 
-        def decorator(payload_type: Type):
-            self._EMIT_EVENT_TYPES[event] = payload_type
+    @overload
+    def register_emit(
+        self,
+        event: str,
+        payload_type: Type[PayloadT],
+        *,
+        namespace: Optional[str] = None,
+        ack_type: Union[TypeForm[Any], None, _Unspecified] = UNSPECIFIED,
+    ) -> Type[PayloadT]: ...
+
+    @overload
+    def register_emit(
+        self,
+        event: str,
+        payload_type: TypeForm[PayloadT],
+        *,
+        namespace: Optional[str] = None,
+        ack_type: Union[TypeForm[Any], None, _Unspecified] = UNSPECIFIED,
+    ) -> TypeForm[PayloadT]: ...
+
+    def register_emit(
+        self,
+        event: str,
+        payload_type: Optional[TypeForm[Any]] = None,
+        *,
+        namespace: Optional[str] = None,
+        ack_type: Union[TypeForm[Any], None, _Unspecified] = UNSPECIFIED,
+    ):
+        """Register an outgoing payload and optional namespace and ACK type.
+
+        Omitting namespace preserves the original event-wide registration.
+        An explicit namespace overrides that registration within its scope.
+        ``ack_type=None`` declares an empty ACK; omitting it leaves the ACK
+        type unspecified. ACK validation in ``call`` remains per invocation.
+        """
+
+        def decorator(payload_type: Any) -> Any:
+            contract = send_contract(event, namespace, payload_type, ack_type)
+            self._operation_contracts[contract.key] = contract
             return payload_type
 
         if payload_type is None:
@@ -152,14 +206,16 @@ class PydanticSioToolset:
             # not invoked as a decorator, but as a function
             return decorator(payload_type)
 
-    def validate_emit(self, event: str, data: Any):
+    def validate_emit(self, event: str, data: Any, namespace: Optional[str] = None):
         """Validate the emit data type for the given event."""
-        expected_type = self._EMIT_EVENT_TYPES.get(event)
-        if expected_type is None:
+        contract = self._operation_contracts.get(
+            OperationKey(namespace or "/", event, "send")
+        ) or self._operation_contracts.get(OperationKey(None, event, "send"))
+        if contract is None:
             # If no type is registered, skip validation
             return
 
-        TypeAdapter(expected_type).validate_python(data)
+        TypeAdapter(contract.payload_types[0]).validate_python(data)
 
     def on(
         self,
@@ -185,11 +241,6 @@ class PydanticSioToolset:
                 event=event,
                 namespace=namespace,
             )
-
-    def schema(self):
-        """Return the event schema of the server."""
-        # TODO
-        pass
 
 
 class Server(PydanticSioToolset, OldServer):
@@ -232,7 +283,7 @@ class Server(PydanticSioToolset, OldServer):
         callback: Optional[Callable] = None,
         ignore_queue: bool = False,
     ):
-        self.validate_emit(event, data)
+        self.validate_emit(event, data, namespace)
         return _old_server_emit(
             self,
             event=event,
@@ -283,7 +334,7 @@ class Server(PydanticSioToolset, OldServer):
         *,
         response_model: Optional[TypeForm[ResponseT]] = None,
     ) -> Any:
-        self.validate_emit(event, data)
+        self.validate_emit(event, data, namespace)
         response = _old_server_call(
             self,
             event,
@@ -337,7 +388,7 @@ class AsyncServer(PydanticSioToolset, OldAsyncServer):
         callback: Optional[Callable] = None,
         ignore_queue: bool = False,
     ):
-        self.validate_emit(event, data)
+        self.validate_emit(event, data, namespace)
         return await _old_server_emit_async(
             self,
             event=event,
@@ -388,7 +439,7 @@ class AsyncServer(PydanticSioToolset, OldAsyncServer):
         *,
         response_model: Optional[TypeForm[ResponseT]] = None,
     ) -> Any:
-        self.validate_emit(event, data)
+        self.validate_emit(event, data, namespace)
         response = await _old_server_call_async(
             self,
             event,
@@ -442,7 +493,7 @@ class Client(PydanticSioToolset, OldClient):
         namespace: Optional[str] = None,
         callback: Optional[Callable] = None,
     ):
-        self.validate_emit(event, data)
+        self.validate_emit(event, data, namespace)
         return _old_client_emit(
             self,
             event=event,
@@ -480,7 +531,7 @@ class Client(PydanticSioToolset, OldClient):
         *,
         response_model: Optional[TypeForm[ResponseT]] = None,
     ) -> Any:
-        self.validate_emit(event, data)
+        self.validate_emit(event, data, namespace)
         response = _old_client_call(
             self,
             event,
@@ -531,7 +582,7 @@ class AsyncClient(PydanticSioToolset, OldAsyncClient):
         namespace: Optional[str] = None,
         callback: Optional[Callable] = None,
     ):
-        self.validate_emit(event, data)
+        self.validate_emit(event, data, namespace)
         return await _old_client_emit_async(
             self,
             event=event,
@@ -569,7 +620,7 @@ class AsyncClient(PydanticSioToolset, OldAsyncClient):
         *,
         response_model: Optional[TypeForm[ResponseT]] = None,
     ) -> Any:
-        self.validate_emit(event, data)
+        self.validate_emit(event, data, namespace)
         response = await _old_client_call_async(
             self,
             event,
@@ -589,7 +640,6 @@ def monkey_patch():
     setattr(OldServer, "call", Server.call)
     setattr(OldServer, "register_emit", Server.register_emit)
     setattr(OldServer, "validate_emit", Server.validate_emit)
-    setattr(OldServer, "schema", Server.schema)
 
     setattr(OldAsyncServer, "__init__", AsyncServer.__init__)
     setattr(OldAsyncServer, "on", AsyncServer.on)
@@ -597,7 +647,6 @@ def monkey_patch():
     setattr(OldAsyncServer, "call", AsyncServer.call)
     setattr(OldAsyncServer, "register_emit", AsyncServer.register_emit)
     setattr(OldAsyncServer, "validate_emit", AsyncServer.validate_emit)
-    setattr(OldAsyncServer, "schema", AsyncServer.schema)
 
     setattr(OldClient, "__init__", Client.__init__)
     setattr(OldClient, "on", Client.on)
@@ -605,7 +654,6 @@ def monkey_patch():
     setattr(OldClient, "call", Client.call)
     setattr(OldClient, "register_emit", Client.register_emit)
     setattr(OldClient, "validate_emit", Client.validate_emit)
-    setattr(OldClient, "schema", Client.schema)
 
     setattr(OldAsyncClient, "__init__", AsyncClient.__init__)
     setattr(OldAsyncClient, "on", AsyncClient.on)
@@ -613,6 +661,5 @@ def monkey_patch():
     setattr(OldAsyncClient, "call", AsyncClient.call)
     setattr(OldAsyncClient, "register_emit", AsyncClient.register_emit)
     setattr(OldAsyncClient, "validate_emit", AsyncClient.validate_emit)
-    setattr(OldAsyncClient, "schema", AsyncClient.schema)
 
     module_logger.debug("Monkey patched")

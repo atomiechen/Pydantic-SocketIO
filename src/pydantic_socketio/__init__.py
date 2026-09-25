@@ -8,6 +8,7 @@ from .pydantic_socketio import (
     AsyncServer as AsyncServer,
     monkey_patch as monkey_patch,
 )
+from .asyncapi import asyncapi_schema as asyncapi_schema
 
 # import only if fastapi is installed
 try:

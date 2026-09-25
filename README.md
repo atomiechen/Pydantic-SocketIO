@@ -129,9 +129,45 @@ async def ask() -> None:
     assert result == Answer(value=4)
 ```
 
+To scope outgoing validation to one namespace and declare its expected
+acknowledgement, use the optional `namespace` and `ack_type` arguments:
+
+```python
+client.register_emit(
+    "question", Question, namespace="/chat", ack_type=Answer
+)
+```
+
+Registrations without `namespace` still apply to every namespace; an explicit
+namespace takes precedence for that namespace. `ack_type` describes the
+acknowledgement contract and can also be a tuple type for multiple ACK arguments
+or `None` for an empty ACK. `call(response_model=...)` remains the way to
+validate and type an individual call's returned value. A plain `emit()` without
+a callback does not request an acknowledgement.
+
 Handler return annotations are validated before their model values are sent as
 acknowledgements. A tuple of return values remains multiple Socket.IO ack
 arguments. The `response_model` can also be a `typing.Union` of response types.
+
+### AsyncAPI schema
+
+Export the operations registered on one server or client as an AsyncAPI 3.1
+dictionary:
+
+```python
+from pydantic_socketio import asyncapi_schema
+
+document = asyncapi_schema(server, title="Chat API", version="1.0.0")
+```
+
+The export reflects this instance's local handlers and `register_emit()` calls;
+it does not inspect the other endpoint. Each message payload is the Socket.IO
+argument list. A declared ACK becomes an AsyncAPI reply, marked as a Socket.IO
+ACK because it is tied to the event packet rather than sent as a separate event.
+An omitted `ack_type` or handler return annotation leaves the ACK unspecified.
+Legacy unscoped emit registrations are shown as applying to all namespaces,
+with scoped overrides excluded. Lifecycle and catch-all handlers are listed as
+omitted in the document because they are not concrete events.
 
 
 ### Migration: Monkey Patching Original Socket.IO
