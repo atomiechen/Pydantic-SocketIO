@@ -74,6 +74,7 @@ def test_export_scoped_send_and_ack_shapes(factory):
         if factory in (pydantic_socketio.Server, pydantic_socketio.AsyncServer)
         else "client"
     )
+    assert document["x-pydantic-socketio"]["formatVersion"] == 1
     assert document["x-pydantic-socketio"]["role"] == expected_role
     assert len(document["operations"]) == 4
     by_event = {

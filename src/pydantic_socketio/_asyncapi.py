@@ -125,7 +125,7 @@ def generate_asyncapi(
         "channels": {},
         "operations": {},
         "components": {"messages": {}, "schemas": {}},
-        _EXTENSION: {"role": role},
+        _EXTENSION: {"formatVersion": 1, "role": role},
     }
     ordered = sorted(contracts, key=_operation_sort_key)
     omitted: List[Dict[str, str]] = []
