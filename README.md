@@ -5,14 +5,14 @@
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/atomiechen/Pydantic-SocketIO)
 
 
-A Pydantic-enhanced SocketIO library for Python, with FastAPI integration.
+A Pydantic-enhanced Socket.IO library for Python, with FastAPI integration.
 
 
 ## Features
 
-⭐️ **Pydantic-Enhanced SocketIO**: Drop-in replacements for the original [python-socketio](https://github.com/miguelgrinberg/python-socketio) server and client (sync and async), with built-in Pydantic validation for event data. You can also easily monkey patch this validation to the original `socketio` server and client.
+⭐️ **Pydantic-Enhanced Socket.IO**: Drop-in replacements for the original [python-socketio](https://github.com/miguelgrinberg/python-socketio) server and client (sync and async), with built-in Pydantic validation for event data. You can also monkey patch this validation onto the original `socketio` server and client.
 
-🪐 **Easy Integration with FastAPI**: Seamlessly integrates `Socket.IO` with FastAPI, allowing you to manage event-driven communication effortlessly.
+🪐 **FastAPI Integration**: Integrates Socket.IO with FastAPI.
 
 
 ## Installation
@@ -27,16 +27,16 @@ If you want FastAPI integration, you can install the extra dependencies:
 pip install pydantic-socketio[fastapi]
 ```
 
-Other options of original [python-socketio](https://github.com/miguelgrinberg/python-socketio) are also available: `client`, `asyncio-client`, `docs`.
+Extras from [python-socketio](https://github.com/miguelgrinberg/python-socketio) are also available: `client`, `asyncio-client`, and `docs`.
 
 
 ## Usage
 
-### Recommended: Pydantic-Enhanced SocketIO Server and Client
+### Recommended: Pydantic-Enhanced Socket.IO Server and Client
 
-Drop-in replacements for the original [python-socketio](https://github.com/miguelgrinberg/python-socketio) server and client are provided. 
+Drop-in replacements for the original [python-socketio](https://github.com/miguelgrinberg/python-socketio) server and client are provided.
 
-The enhanced SocketIO server with Pydantic validation:
+The enhanced Socket.IO server with Pydantic validation:
 
 ```python
 from pydantic import BaseModel
@@ -46,21 +46,21 @@ class ChatMessage(BaseModel):
     role: str
     content: str
 
-# Create an enhanced SocketIO server; use AsyncServer for async server
+# Create a server; use AsyncServer for an asyncio server
 sio = pydantic_socketio.Server()
 
-# Define a listen event with Pydantic validation
+# Register an event handler with Pydantic validation
 @sio.event
-def message(data: ChatMessage):
+def message(sid: str, data: ChatMessage):
     print(f"Received chat message from {data.role}: {data.content}")
     data.content = data.content.upper()
     print(f"Sending uppercase message: {data.content}")
-    # Emit an event with Pydantic model without any additional conversion
+    # Emit a Pydantic model without manual conversion
     sio.emit("message", data)
 
 # `on` decorator is also supported
 @sio.on("custom_event")
-def handle_custom_event(data: int):
+def handle_custom_event(sid: str, data: int):
     ...
 
 # Register an emit event with Pydantic validation
@@ -72,12 +72,13 @@ class MiscData(BaseModel):
     value: int
 ```
 
-The enhanced SocketIO client with Pydantic validation:
+The enhanced Socket.IO client with Pydantic validation:
 
 ```python
+from pydantic import BaseModel
 import pydantic_socketio
 
-# Create an enhanced SocketIO client; use AsyncClient for async client
+# Create a client; use AsyncClient for an asyncio client
 sio = pydantic_socketio.Client()
 
 @sio.register_emit("ping")
@@ -121,9 +122,11 @@ async def answer(sid: str, data: Question) -> Answer:
 
 client = pydantic_socketio.AsyncClient()
 client.register_emit("question", Question)
-# After connecting the client:
-result = await client.call("question", Question(value=3), response_model=Answer)
-assert result == Answer(value=4)
+
+async def ask() -> None:
+    # Connect the client to the server before calling this function.
+    result = await client.call("question", Question(value=3), response_model=Answer)
+    assert result == Answer(value=4)
 ```
 
 Handler return annotations are validated before their model values are sent as
@@ -131,7 +134,7 @@ acknowledgements. A tuple of return values remains multiple Socket.IO ack
 arguments. The `response_model` can also be a `typing.Union` of response types.
 
 
-### Alternative: Monkey Patching for Original SocketIO
+### Alternative: Monkey Patching for Original Socket.IO
 
 Alternatively, if you want to apply Pydantic validation to the original [python-socketio](https://github.com/miguelgrinberg/python-socketio) server and client without replacing them, you can use the `monkey_patch()` method:
 
@@ -139,24 +142,24 @@ Alternatively, if you want to apply Pydantic validation to the original [python-
 from pydantic_socketio import monkey_patch
 import socketio
 
-# Apply monkey patch to the original socketio server and client
+# Apply the patch to the original Socket.IO server and client
 monkey_patch()
 
-# Now, you can use the original socketio server and client with Pydantic validation
+# Use the original Socket.IO classes with Pydantic validation
 sio = socketio.Server()
 
 @sio.event
-def ping(data: int):
+def ping(sid: str, data: int):
     print(f"Received ping: {data}")
     data += 1
     print(f"Sending pong: {data}")
-    sio.emit("poing", data)
+    sio.emit("pong", data)
 ```
 
 
 ### FastAPI Integration
 
-You can easily integrate the enhanced socketio server with FastAPI by using FastAPISocketIO:
+You can integrate the enhanced Socket.IO server with FastAPI using `FastAPISocketIO`:
 
 ```python
 from fastapi import FastAPI
@@ -167,13 +170,12 @@ app = FastAPI()
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
-...
 
-# Create a FastAPI socketio server
+# Create a FastAPI Socket.IO server
 sio = FastAPISocketIO(app)
 
 @sio.event
-async def ping(data: int):
+async def ping(sid: str, data: int):
     print(f"Received ping: {data}")
     data += 1
     print(f"Sending pong: {data}")
@@ -181,22 +183,20 @@ async def ping(data: int):
 
 # Both sync and async event handlers are supported, as per the original python-socketio
 @sio.on("custom_event")
-def handle_custom_event(data: int):
+def handle_custom_event(sid: str, data: int):
     ...
 ```
 
-You can also integrate the SocketIO server manually after FastAPI initialization:
+You can also integrate the Socket.IO server after creating the FastAPI app:
 
 ```python
 from fastapi import FastAPI
 from pydantic_socketio import FastAPISocketIO
 
 sio = FastAPISocketIO()
-...
 app = FastAPI()
-...
 
-# Integrate the SocketIO server to FastAPI
+# Integrate the Socket.IO server with FastAPI
 sio.integrate(app)
 ```
 
