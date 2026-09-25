@@ -50,23 +50,9 @@ jobs:
         uv sync --locked --all-extras
       #   python -m pip install --upgrade pip
       #   pip install -r requirements.txt
-    - name: Activate venv and store path (Windows)
-      # ref: https://stackoverflow.com/a/74669486/11854304
-      # ref: https://stackoverflow.com/a/72926104/11854304
-      if: runner.os == 'Windows'
-      run: |
-        .venv\Scripts\activate
-        echo PATH=$PATH >> $GITHUB_ENV
-    - name: Activate venv and store path (Linux/Mac)
-      # ref: https://stackoverflow.com/a/74669486/11854304
-      # ref: https://stackoverflow.com/a/72926104/11854304
-      if: runner.os != 'Windows'
-      run: |
-        source .venv/bin/activate
-        echo PATH=$PATH >> $GITHUB_ENV
     - name: Lint
-      run: |
-        ./scripts/lint.sh
+      shell: bash
+      run: uv run --locked --no-sync bash scripts/lint.sh
     - name: Test
-      run: |
-        ./scripts/test.sh
+      shell: bash
+      run: uv run --locked --no-sync bash scripts/test.sh
