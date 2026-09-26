@@ -1,6 +1,11 @@
 name: Test TypeScript codegen
 
 on:
+  workflow_call:
+    inputs:
+      release_tag:
+        type: string
+        required: false
   pull_request:
     branches: [main]
     paths:
@@ -26,6 +31,8 @@ jobs:
         node-version: ["22", "24"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || '' }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
