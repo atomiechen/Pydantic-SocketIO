@@ -1,0 +1,27 @@
+{
+  "name": "@pydantic-socketio/codegen",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Generate native Socket.IO TypeScript event types from Pydantic-SocketIO contracts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/atomiechen/Pydantic-SocketIO.git",
+    "directory": "packages/codegen"
+  },
+  "bin": {
+    "pydantic-socketio-codegen": "bin/generate.cjs"
+  },
+  "files": ["bin", "src"],
+  "engines": {"node": ">=22"},
+  "scripts": {
+    "test": "node test/e2e.cjs"
+  },
+  "dependencies": {
+    "json-schema-to-typescript": "16.0.0"
+  },
+  "devDependencies": {
+    "socket.io-client": "4.8.3",
+    "typescript": "5.9.3"
+  }
+}

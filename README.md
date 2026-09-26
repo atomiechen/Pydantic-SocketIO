@@ -169,6 +169,13 @@ Legacy unscoped emit registrations are shown as applying to all namespaces,
 with scoped overrides excluded. Lifecycle and catch-all handlers are listed as
 omitted in the document because they are not concrete events.
 
+### TypeScript codegen
+
+The in-development [`@pydantic-socketio/codegen`](https://github.com/atomiechen/Pydantic-SocketIO/tree/main/packages/codegen)
+package reads that exported JSON and generates event types for the official
+`socket.io-client`. Export with `asyncapi_schema()` once, then run the codegen
+CLI on the JSON; the Python runtime does not need Node.js.
+
 
 ### Migration: Monkey Patching Original Socket.IO
 

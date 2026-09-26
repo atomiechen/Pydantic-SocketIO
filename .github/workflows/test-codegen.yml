@@ -1,0 +1,75 @@
+name: Test TypeScript codegen
+
+on:
+  workflow_call:
+    inputs:
+      release_tag:
+        type: string
+        required: false
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/pydantic_socketio/**"
+      - "packages/codegen/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/test-codegen.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/pydantic_socketio/**"
+      - "packages/codegen/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/test-codegen.yml"
+
+jobs:
+  consumer-types:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: ["22", "24"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || '' }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+          cache-dependency-path: packages/codegen/package-lock.json
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: npm ci --prefix packages/codegen
+      - run: npm test --prefix packages/codegen
+      - name: Verify npm tarball installation
+        if: matrix.node-version == '24'
+        run: |
+          npm pack --dry-run --json ./packages/codegen > "$RUNNER_TEMP/codegen-pack.json"
+          npm pack ./packages/codegen --pack-destination "$RUNNER_TEMP"
+          if tar -tzf "$RUNNER_TEMP"/pydantic-socketio-codegen-*.tgz | grep -E '^package/(test/|node_modules/|pyproject\.toml$|src/pydantic_socketio/)' >/dev/null; then
+            echo 'The npm tarball contains development or Python files.' >&2
+            exit 1
+          fi
+          npm install --prefix "$RUNNER_TEMP/codegen-install" "$RUNNER_TEMP"/pydantic-socketio-codegen-*.tgz
+          "$RUNNER_TEMP/codegen-install/node_modules/.bin/pydantic-socketio-codegen" \
+            packages/codegen/test/generated/server.json -o "$RUNNER_TEMP/socketio.generated.ts"
+          test -s "$RUNNER_TEMP/socketio.generated.ts"
+      - name: Keep Python distributions free of npm files
+        if: matrix.node-version == '24'
+        run: |
+          uv build --sdist --wheel --out-dir "$RUNNER_TEMP/pyd-sio-dist"
+          if tar -tzf "$RUNNER_TEMP"/pyd-sio-dist/*.tar.gz | grep '/packages/' >/dev/null; then
+            echo 'The Python source distribution includes npm packages.' >&2
+            exit 1
+          fi
+          if unzip -Z1 "$RUNNER_TEMP"/pyd-sio-dist/*.whl | grep '/packages/' >/dev/null; then
+            echo 'The Python wheel includes npm packages.' >&2
+            exit 1
+          fi
+          uv build "$RUNNER_TEMP"/pyd-sio-dist/*.tar.gz --wheel --out-dir "$RUNNER_TEMP/from-sdist"
