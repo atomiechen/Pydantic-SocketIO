@@ -1,0 +1,12 @@
+{
+  "title": "Pydantic-SocketIO Codegen",
+  "description": "Generate Socket.IO TypeScript event interfaces from Pydantic-SocketIO AsyncAPI contracts.",
+  "links": {
+    "repoUrl": "https://github.com/atomiechen/Pydantic-SocketIO/tree/main/packages/codegen"
+  },
+  "filters": {
+    "language": "TypeScript",
+    "technology": ["Node.js", "TypeScript", "Socket.IO"],
+    "categories": ["code-generator", "cli"]
+  }
+}

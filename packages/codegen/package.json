@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "license": "MIT",
   "description": "Generate native Socket.IO TypeScript event types from Pydantic-SocketIO contracts",
+  "keywords": ["socket.io", "socketio", "typescript", "asyncapi", "codegen", "pydantic", "type-safety", "event-types"],
+  "homepage": "https://github.com/atomiechen/Pydantic-SocketIO/tree/main/packages/codegen#readme",
+  "bugs": {"url": "https://github.com/atomiechen/Pydantic-SocketIO/issues"},
   "repository": {
     "type": "git",
     "url": "git+https://github.com/atomiechen/Pydantic-SocketIO.git",

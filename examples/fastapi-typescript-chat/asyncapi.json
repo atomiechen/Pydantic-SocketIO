@@ -1,0 +1,164 @@
+{
+  "asyncapi": "3.1.0",
+  "info": {
+    "title": "Chat example",
+    "version": "1.0.0"
+  },
+  "channels": {
+    "op_ask_receive_chat_b456619231b79ecd_channel": {
+      "address": "/chat",
+      "messages": {
+        "op_ask_receive_chat_b456619231b79ecd_message": {
+          "$ref": "#/components/messages/op_ask_receive_chat_b456619231b79ecd_message"
+        }
+      }
+    },
+    "op_ask_receive_chat_b456619231b79ecd_ack_channel": {
+      "address": null,
+      "messages": {
+        "op_ask_receive_chat_b456619231b79ecd_ack_message": {
+          "$ref": "#/components/messages/op_ask_receive_chat_b456619231b79ecd_ack_message"
+        }
+      }
+    },
+    "op_notice_send_chat_46769fd1cbd72f05_channel": {
+      "address": "/chat",
+      "messages": {
+        "op_notice_send_chat_46769fd1cbd72f05_message": {
+          "$ref": "#/components/messages/op_notice_send_chat_46769fd1cbd72f05_message"
+        }
+      }
+    }
+  },
+  "operations": {
+    "op_ask_receive_chat_b456619231b79ecd": {
+      "summary": "Receive ask (/chat)",
+      "action": "receive",
+      "channel": {
+        "$ref": "#/channels/op_ask_receive_chat_b456619231b79ecd_channel"
+      },
+      "messages": [
+        {
+          "$ref": "#/channels/op_ask_receive_chat_b456619231b79ecd_channel/messages/op_ask_receive_chat_b456619231b79ecd_message"
+        }
+      ],
+      "reply": {
+        "channel": {
+          "$ref": "#/channels/op_ask_receive_chat_b456619231b79ecd_ack_channel"
+        },
+        "messages": [
+          {
+            "$ref": "#/channels/op_ask_receive_chat_b456619231b79ecd_ack_channel/messages/op_ask_receive_chat_b456619231b79ecd_ack_message"
+          }
+        ],
+        "x-pydantic-socketio": {
+          "ack": true
+        }
+      }
+    },
+    "op_notice_send_chat_46769fd1cbd72f05": {
+      "summary": "Send notice (/chat)",
+      "action": "send",
+      "channel": {
+        "$ref": "#/channels/op_notice_send_chat_46769fd1cbd72f05_channel"
+      },
+      "messages": [
+        {
+          "$ref": "#/channels/op_notice_send_chat_46769fd1cbd72f05_channel/messages/op_notice_send_chat_46769fd1cbd72f05_message"
+        }
+      ],
+      "x-pydantic-socketio": {
+        "ack": "unspecified"
+      }
+    }
+  },
+  "components": {
+    "messages": {
+      "op_ask_receive_chat_b456619231b79ecd_message": {
+        "name": "ask",
+        "x-pydantic-socketio": {
+          "event": "ask",
+          "arguments": [
+            {
+              "name": "request"
+            }
+          ]
+        },
+        "payload": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "properties": {
+                "text": {
+                  "title": "Text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text"
+              ],
+              "title": "Ask",
+              "type": "object"
+            }
+          ],
+          "minItems": 1,
+          "maxItems": 1
+        }
+      },
+      "op_ask_receive_chat_b456619231b79ecd_ack_message": {
+        "name": "ask.ack",
+        "payload": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "properties": {
+                "accepted": {
+                  "title": "Accepted",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "accepted"
+              ],
+              "title": "Answer",
+              "type": "object"
+            }
+          ],
+          "minItems": 1,
+          "maxItems": 1
+        }
+      },
+      "op_notice_send_chat_46769fd1cbd72f05_message": {
+        "name": "notice",
+        "x-pydantic-socketio": {
+          "event": "notice"
+        },
+        "payload": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "properties": {
+                "text": {
+                  "title": "Text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text"
+              ],
+              "title": "Notice",
+              "type": "object"
+            }
+          ],
+          "minItems": 1,
+          "maxItems": 1
+        }
+      }
+    },
+    "schemas": {}
+  },
+  "x-pydantic-socketio": {
+    "formatVersion": 1,
+    "role": "server"
+  }
+}

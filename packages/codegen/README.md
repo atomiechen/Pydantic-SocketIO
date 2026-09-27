@@ -2,7 +2,7 @@
 
 `@pydantic-socketio/codegen` turns a Pydantic-SocketIO AsyncAPI contract into event types for the official Socket.IO TypeScript client **or server**. Event names, namespace paths, payloads, handler argument names, and ACKs come from the Python registrations. The generated file contains types; it does not replace Socket.IO.
 
-Requires Pydantic-SocketIO with `asyncapi_schema()` and Node.js 18 or newer.
+Requires Pydantic-SocketIO with AsyncAPI export and Node.js 18 or newer.
 
 ## Python server → TypeScript client
 
@@ -39,13 +39,14 @@ def ask(sid: str, request: Ask) -> Answer:
     return Answer(accepted=True)
 
 
-schema = pydantic_socketio.asyncapi_schema(server, title="Chat API", version="1.0.0")
+schema = server.asyncapi(title="Chat API", version="1.0.0")
 Path("asyncapi.json").write_text(json.dumps(schema, indent=2))
 ```
 
 Run `python contract.py`. In the TypeScript project, generate and use the types:
 
 ```sh
+npm install socket.io-client
 npm install --save-dev @pydantic-socketio/codegen
 npx @pydantic-socketio/codegen asyncapi.json -o src/socketio.generated.ts
 ```
@@ -100,11 +101,14 @@ def notice(message: Notice) -> Answer:
     return Answer(accepted=True)
 
 
-schema = pydantic_socketio.asyncapi_schema(client, title="Chat API", version="1.0.0")
+schema = client.asyncapi(title="Chat API", version="1.0.0")
 Path("asyncapi.json").write_text(json.dumps(schema, indent=2))
 ```
 
-Run `python client_contract.py`, then run the same `npx @pydantic-socketio/codegen asyncapi.json -o src/socketio.generated.ts` command. On the TypeScript side, use the generated interfaces with the official server:
+Run `python client_contract.py`, install `socket.io` in the TypeScript server
+project, then run the same `npx @pydantic-socketio/codegen asyncapi.json -o
+src/socketio.generated.ts` command. Use the generated interfaces with the
+official server:
 
 ```ts
 import { Server, type Namespace } from "socket.io";

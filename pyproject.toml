@@ -1,18 +1,32 @@
 [project]
 name = "pydantic-socketio"
 version = "0.2.0"
-description = "Pydantic-enhanced SocketIO with FastAPI integration support."
+description = "Pydantic validation and typed Python-to-TypeScript contracts for Socket.IO, with AsyncAPI export."
 readme = "README.md"
 authors = [
     { name = "Atomie CHEN", email = "atomic_cwh@163.com" }
 ]
 requires-python = ">=3.8"
+license = "MIT"
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Framework :: Pydantic",
+    "Framework :: Pydantic :: 2",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "Topic :: Communications",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Code Generators",
+    "Typing :: Typed",
     "Operating System :: OS Independent",
 ]
-keywords = ["pydantic", "socketio", "fastapi"]
+keywords = ["pydantic", "socketio", "socket-io", "fastapi", "asyncapi", "typescript", "type-safety", "codegen", "realtime"]
 dependencies = [
     "pydantic>=2.10.6",
     "python-socketio>=5.16.2",
@@ -20,9 +34,10 @@ dependencies = [
 ]
 
 [project.urls]
-homepage = "https://github.com/atomiechen/Pydantic-SocketIO"
-issues = "https://github.com/atomiechen/Pydantic-SocketIO/issues"
-changelog = "https://github.com/atomiechen/Pydantic-SocketIO/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/atomiechen/Pydantic-SocketIO"
+Repository = "https://github.com/atomiechen/Pydantic-SocketIO"
+Issues = "https://github.com/atomiechen/Pydantic-SocketIO/issues"
+Changelog = "https://github.com/atomiechen/Pydantic-SocketIO/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 fastapi = [
@@ -43,7 +58,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.sdist]
-exclude = ["/packages"]
+exclude = ["/packages", "/examples"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pydantic_socketio"]

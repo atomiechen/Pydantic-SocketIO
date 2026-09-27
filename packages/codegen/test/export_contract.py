@@ -78,5 +78,5 @@ client.register_emit("client_send", Request, namespace="/", ack_type=Answer)
 destination = Path(__file__).parent / "generated"
 destination.mkdir(exist_ok=True)
 for name, sio in (("server", server), ("client", client)):
-    document = pydantic_socketio.asyncapi_schema(sio, title="Type test", version="1")
+    document = sio.asyncapi(title="Type test", version="1")
     (destination / f"{name}.json").write_text(json.dumps(document, indent=2))

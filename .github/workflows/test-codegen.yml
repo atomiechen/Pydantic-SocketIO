@@ -11,6 +11,7 @@ on:
     paths:
       - "src/pydantic_socketio/**"
       - "packages/codegen/**"
+      - "examples/fastapi-typescript-chat/**"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/test-codegen.yml"
@@ -19,6 +20,7 @@ on:
     paths:
       - "src/pydantic_socketio/**"
       - "packages/codegen/**"
+      - "examples/fastapi-typescript-chat/**"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/test-codegen.yml"
@@ -75,3 +77,35 @@ jobs:
             exit 1
           fi
           uv build "$RUNNER_TEMP"/pyd-sio-dist/*.tar.gz --wheel --out-dir "$RUNNER_TEMP/from-sdist"
+
+  chat-example:
+    if: ${{ inputs.release_tag == '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            packages/codegen/package-lock.json
+            examples/fastapi-typescript-chat/package-lock.json
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked --all-extras
+      - run: npm ci --prefix packages/codegen
+      - run: npm ci --prefix examples/fastapi-typescript-chat
+      - name: Check exported AsyncAPI and generated TypeScript
+        run: |
+          uv run --locked --no-sync python examples/fastapi-typescript-chat/export_contract.py
+          node packages/codegen/bin/generate.cjs \
+            examples/fastapi-typescript-chat/asyncapi.json \
+            -o examples/fastapi-typescript-chat/src/socketio.generated.ts
+          git diff --exit-code -- \
+            examples/fastapi-typescript-chat/asyncapi.json \
+            examples/fastapi-typescript-chat/src/socketio.generated.ts
+      - run: npm run build --prefix examples/fastapi-typescript-chat

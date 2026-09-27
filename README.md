@@ -1,21 +1,77 @@
 # Pydantic-SocketIO
 
-[![GitHub](https://img.shields.io/badge/github-Pydantic--SocketIO-blue?logo=github)](https://github.com/atomiechen/Pydantic-SocketIO)
+[![Python CI](https://github.com/atomiechen/Pydantic-SocketIO/actions/workflows/test.yml/badge.svg)](https://github.com/atomiechen/Pydantic-SocketIO/actions/workflows/test.yml)
 [![PyPI](https://img.shields.io/pypi/v/Pydantic--SocketIO?logo=pypi&logoColor=white)](https://pypi.org/project/pydantic-socketio/)
 [![npm codegen](https://img.shields.io/npm/v/%40pydantic-socketio%2Fcodegen?logo=npm&label=codegen)](https://www.npmjs.com/package/@pydantic-socketio/codegen)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/atomiechen/Pydantic-SocketIO)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8%2B-blue)](pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+**One Socket.IO contract from Python to TypeScript.**
 
-Add Pydantic validation to Python Socket.IO, export an AsyncAPI contract, and
-generate typed events for a TypeScript Socket.IO client or server.
+Pydantic-SocketIO adds runtime validation to [python-socketio](https://github.com/miguelgrinberg/python-socketio), exports an AsyncAPI 3.1 contract, and generates event interfaces for the official TypeScript Socket.IO client or server. Define events, namespaces, payloads, and acknowledgements in Python; avoid maintaining a second TypeScript event map by hand.
 
+**Runtime-safe Python. Compile-time-safe TypeScript. Without replacing Socket.IO.**
+
+## Quick start
+
+```sh
+pip install pydantic-socketio
+```
+
+Register Python events, export the contract, then generate TypeScript event interfaces:
+
+```python
+# contract.py
+import json
+from pathlib import Path
+
+from pydantic import BaseModel
+from pydantic_socketio import Server
+
+class Ask(BaseModel):
+    text: str
+
+class Answer(BaseModel):
+    accepted: bool
+
+server = Server(async_mode="threading")
+
+@server.on("ask", namespace="/chat")
+def ask(sid: str, request: Ask) -> Answer:
+    return Answer(accepted=bool(request.text))
+
+document = server.asyncapi(title="Chat", version="1")
+Path("asyncapi.json").write_text(json.dumps(document))
+```
+
+```sh
+python contract.py
+npx @pydantic-socketio/codegen asyncapi.json -o socketio.generated.ts
+```
+
+Install `socket.io-client` in your TypeScript project. The generated types plug
+into its official client:
+
+```ts
+import { io, type Socket } from "socket.io-client";
+import { Chat } from "./socketio.generated";
+
+const socket: Socket<Chat.ServerToClientEvents, Chat.ClientToServerEvents> = io(Chat.path);
+socket.emit("ask", { text: "Hello" }, (answer) => console.log(answer.accepted));
+```
+
+Pydantic validates the Python event at runtime; TypeScript checks the payload and ACK during compilation. The generated file contains event types and does not add another frontend runtime. For a live FastAPI server, browser client, and regeneration commands, run the [five-minute chat example](examples/fastapi-typescript-chat/README.md).
 
 ## Features
 
-⭐️ **Pydantic-Enhanced Socket.IO**: Drop-in replacements for the original [python-socketio](https://github.com/miguelgrinberg/python-socketio) server and client (sync and async), with built-in Pydantic validation for event data. You can also monkey patch this validation onto the original `socketio` server and client.
-
-🪐 **FastAPI Integration**: Integrates Socket.IO with FastAPI.
-
+- **Python as the source of truth:** Define Socket.IO events and Pydantic models once in the Python server or client.
+- **Runtime validation:** Validate incoming and registered outgoing payloads with Pydantic.
+- **Typed payloads and acknowledgements:** Validate handler returns and opt in to typed `call(response_model=...)` results.
+- **AsyncAPI 3.1 export:** Describe the registered Socket.IO operations without maintaining a separate schema file.
+- **Socket.IO-native TypeScript codegen:** Generate interfaces for the official `socket.io-client` or `socket.io` package.
+- **Namespaces and both directions:** Generate Python server → TS client or Python client → TS server contracts, including scoped events and ACKs.
+- **FastAPI integration:** Mount an async Socket.IO server alongside a FastAPI application.
+- **Migration support:** Use enhanced server/client classes, or monkey patch existing `python-socketio` code when needed.
 
 ## Installation
 
@@ -156,6 +212,17 @@ arguments. The `response_model` can also be a `typing.Union` of response types.
 
 Export the operations registered on one server or client as an AsyncAPI 3.1
 dictionary:
+
+```python
+document = server.asyncapi(title="Chat API", version="1.0.0")
+```
+
+The method is available on `Server`, `AsyncServer`, `Client`, and `AsyncClient`.
+Title and version are explicit because Socket.IO endpoints do not store
+AsyncAPI document metadata. Each call exports the current registrations,
+including handlers or emits added since the previous call.
+
+The same exporter is also available as a function:
 
 ```python
 from pydantic_socketio import asyncapi_schema

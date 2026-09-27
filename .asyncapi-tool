@@ -1,0 +1,12 @@
+{
+  "title": "Pydantic-SocketIO",
+  "description": "Python-first Socket.IO runtime validation with Pydantic and code-first AsyncAPI contracts.",
+  "links": {
+    "repoUrl": "https://github.com/atomiechen/Pydantic-SocketIO"
+  },
+  "filters": {
+    "language": "Python",
+    "technology": ["Socket.IO", "FastAPI", "asyncio"],
+    "categories": ["code-first"]
+  }
+}
