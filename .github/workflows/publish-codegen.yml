@@ -1,0 +1,60 @@
+name: Publish codegen
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_npm:
+        type: boolean
+        default: false
+        description: Publish @pydantic-socketio/codegen to npm
+      publish_gh_release:
+        type: boolean
+        default: true
+        description: Create a GitHub Release
+      use_changelog:
+        type: boolean
+        default: true
+        description: Extract notes from the codegen changelog
+      release_tag:
+        type: string
+        required: false
+        description: Codegen tag (empty for latest codegen tag)
+
+jobs:
+  get-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Verify codegen tag
+        id: tag
+        uses: atomiechen/reusable-workflows/.github/actions/verify-tag@main
+        with:
+          tag: ${{ inputs.release_tag }}
+          tag_pattern: "codegen-v*"
+
+  test:
+    needs: get-tag
+    uses: ./.github/workflows/test-codegen.yml
+    with:
+      release_tag: ${{ needs.get-tag.outputs.release_tag }}
+
+  publish:
+    needs: [get-tag, test]
+    permissions:
+      contents: write
+      id-token: write
+    uses: atomiechen/reusable-workflows/.github/workflows/publish-npm-package.yml@main
+    with:
+      package_name: "@pydantic-socketio/codegen"
+      package_dir: packages/codegen
+      package_manager: npm
+      tag_prefix: codegen-v
+      tag_pattern: "codegen-v*"
+      release_tag: ${{ needs.get-tag.outputs.release_tag }}
+      changelog_file: packages/codegen/CHANGELOG.md
+      publish_npm: ${{ inputs.publish_npm }}
+      publish_gh_release: ${{ inputs.publish_gh_release }}
+      use_changelog: ${{ inputs.use_changelog }}
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -161,9 +161,14 @@ def generate_asyncapi(
         channel_name = name + "_channel"
         message_name = name + "_message"
         context = key.direction + " " + repr(key.event) + " in " + repr(key.namespace)
+        message_extension: Dict[str, Any] = {"event": key.event}
+        if key.direction == "receive" and contract.payload_names:
+            message_extension["arguments"] = [
+                {"name": argument} for argument in contract.payload_names
+            ]
         document["components"]["messages"][message_name] = {
             "name": key.event,
-            _EXTENSION: {"event": key.event},
+            _EXTENSION: message_extension,
             "payload": (
                 _wire_schema(
                     contract.payload_types[0],

@@ -42,6 +42,12 @@ docs = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build.targets.sdist]
+exclude = ["/packages"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pydantic_socketio"]
+
 [dependency-groups]
 dev = [
     "fastapi[standard]>=0.115.11",

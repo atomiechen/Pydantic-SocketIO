@@ -30,14 +30,10 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v4
-    - name: Checkout to release tag if provided
-      if: ${{ inputs.release_tag }}
-      run: |
-        echo "Checking out to release tag ${{ inputs.release_tag }}"
-        git fetch --prune --unshallow --tags
-        git checkout ${{ inputs.release_tag }}
+      with:
+        ref: ${{ inputs.release_tag || '' }}
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install uv
