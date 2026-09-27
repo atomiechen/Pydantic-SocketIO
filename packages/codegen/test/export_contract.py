@@ -45,7 +45,9 @@ def many(sid: str, first: Request, second: int) -> Tuple[int, str]:
     return second, first.label or ""
 
 
-server.register_emit("shared", Tuple[int, str], namespace="/chat", ack_type=Tuple[int, str])
+server.register_emit(
+    "shared", Tuple[int, str], namespace="/chat", ack_type=Tuple[int, str]
+)
 server.register_emit("tick", int, namespace="/", ack_type=None)
 server.register_emit("fallback", Request)
 server.register_emit("fallback", Answer, namespace="/chat")

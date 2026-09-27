@@ -127,7 +127,9 @@ def test_export_server_receive_multiarg_and_bidirectional(factory):
     assert {item["action"] for item in operations} == {"send", "receive"}
     incoming = next(item for item in operations if item["action"] == "receive")
     assert operation_message(document, incoming)["payload"]["maxItems"] == 2
-    assert operation_message(document, incoming)["x-pydantic-socketio"]["arguments"] == [
+    assert operation_message(document, incoming)["x-pydantic-socketio"][
+        "arguments"
+    ] == [
         {"name": "first"},
         {"name": "second"},
     ]
@@ -156,9 +158,9 @@ def test_export_client_receive(factory):
     operation = next(iter(document["operations"].values()))
     assert operation["action"] == "receive"
     assert operation_message(document, operation)["payload"]["maxItems"] == 1
-    assert operation_message(document, operation)["x-pydantic-socketio"]["arguments"] == [
-        {"name": "data"}
-    ]
+    assert operation_message(document, operation)["x-pydantic-socketio"][
+        "arguments"
+    ] == [{"name": "data"}]
     assert reply_message(document, operation)["payload"]["maxItems"] == 1
 
 

@@ -29,7 +29,9 @@ def serve(port: int) -> None:
 
     @server.on("ask", namespace="/chat")
     def ask(sid: str, request: Request) -> Answer:
-        server.emit("notice", Answer(doubled=request.value * 2), to=sid, namespace="/chat")
+        server.emit(
+            "notice", Answer(doubled=request.value * 2), to=sid, namespace="/chat"
+        )
         return Answer(doubled=request.value * 2)
 
     app = socketio.WSGIApp(server)
@@ -56,8 +58,12 @@ def connect(port: int) -> None:
     def confirmed_handler() -> None:
         confirmed.set()
 
-    client.connect(f"http://127.0.0.1:{port}", namespaces=["/chat"], transports=["polling"])
-    response = client.call("ask", Request(value=7), namespace="/chat", response_model=Answer)
+    client.connect(
+        f"http://127.0.0.1:{port}", namespaces=["/chat"], transports=["polling"]
+    )
+    response = client.call(
+        "ask", Request(value=7), namespace="/chat", response_model=Answer
+    )
     assert response.doubled == 14, response
     assert notice_received.wait(5), "notice was not received"
     assert observed == [3], observed
