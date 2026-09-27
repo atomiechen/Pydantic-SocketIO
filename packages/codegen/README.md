@@ -107,11 +107,13 @@ Path("asyncapi.json").write_text(json.dumps(schema, indent=2))
 Run `python client_contract.py`, then run the same `npx @pydantic-socketio/codegen asyncapi.json -o src/socketio.generated.ts` command. On the TypeScript side, use the generated interfaces with the official server:
 
 ```ts
-import { Server } from "socket.io";
+import { Server, type Namespace } from "socket.io";
 import { Chat } from "./socketio.generated";
 
-const server = new Server<Chat.ClientToServerEvents, Chat.ServerToClientEvents>(3000);
-server.of(Chat.path).on("connection", (socket) => {
+const server = new Server(3000);
+const chat: Namespace<Chat.ClientToServerEvents, Chat.ServerToClientEvents> =
+  server.of(Chat.path);
+chat.on("connection", (socket) => {
   socket.on("ask", (request, ack) => {
     console.log(request.text); // Ask.text is a string
     ack?.({ accepted: true }); // Answer
@@ -126,7 +128,22 @@ A Python client can connect to that server and call `ask` with `response_model=A
 
 ## Namespaces and regeneration
 
-`/` becomes `Root`, `/chat` becomes `Chat`, and `/admin` becomes `Admin`. Each generated namespace has `path`, `ClientToServerEvents`, and `ServerToClientEvents`. Create a typed Socket.IO endpoint for each namespace you use. Unscoped outgoing registrations also appear under `Unscoped`; a registration for a specific namespace overrides that fallback there.
+`/` becomes `Root`, `/chat` becomes `Chat`, and `/admin` becomes `Admin`. These are generated TypeScript namespaces containing `path`, `ClientToServerEvents`, and `ServerToClientEvents`; they are not Socket.IO server instances.
+
+On a TypeScript client, `io(Root.path)` and `io(Chat.path)` return separate namespace sockets, which normally share one underlying connection. On a TypeScript server, use **one** `Server` and obtain namespace handles with `server.of(path)`. If the Python contract covers both `/` and `/chat`, the server can type them separately:
+
+```ts
+import { Server, type Namespace } from "socket.io";
+import { Root, Chat } from "./socketio.generated";
+
+const server = new Server<Root.ClientToServerEvents, Root.ServerToClientEvents>(3000);
+server.on("connection", (socket) => { /* events in / */ });
+const chat: Namespace<Chat.ClientToServerEvents, Chat.ServerToClientEvents> =
+  server.of(Chat.path);
+chat.on("connection", (socket) => { /* events in /chat */ });
+```
+
+Unscoped outgoing registrations also appear under `Unscoped`; a registration for a specific namespace overrides that fallback there.
 
 Named Pydantic models are exported as named TypeScript declarations such as `Ask`, `Answer`, and `Notice`. Primitive event arguments stay inline, and Python handler argument names appear in tuple labels. If two different models share a name, codegen adds event context so their types remain distinct. The JSON contract is sufficient to understand the generated file without Python source access.
 

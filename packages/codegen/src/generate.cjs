@@ -235,14 +235,15 @@ async function generate(document) {
   }
 
   const operations = [];
-  const addresses = new Set(['/']);
+  const addresses = new Set();
   for (const [id, operation] of Object.entries(document.operations)) {
     if (!['send', 'receive'].includes(operation.action)) throw new Error(`${id}: invalid action`);
     const channel = pointer(document, operation.channel?.$ref);
     if (channel.address !== null && (typeof channel.address !== 'string' || !channel.address.startsWith('/'))) {
       throw new Error(`${id}: invalid namespace`);
     }
-    if (channel.address !== null) addresses.add(channel.address);
+    if (channel.address === null) addresses.add('/');
+    else addresses.add(channel.address);
     if (!Array.isArray(operation.messages) || operation.messages.length !== 1) {
       throw new Error(`${id}: expected exactly one event message`);
     }
@@ -310,7 +311,8 @@ async function generate(document) {
 
   const output = [
     '// Generated from a Pydantic-SocketIO AsyncAPI contract. Do not edit.',
-    '// Use with Socket<ServerToClientEvents, ClientToServerEvents> or Server<ClientToServerEvents, ServerToClientEvents>.',
+    '// Client: Socket<ServerToClientEvents, ClientToServerEvents>.',
+    '// Server: Server<ClientToServerEvents, ServerToClientEvents> for /; Namespace<...> for other paths.',
   ];
   const declarations = await registry.declarations(uniqueModels);
   if (declarations) output.push(declarations);

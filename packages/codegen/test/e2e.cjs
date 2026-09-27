@@ -48,8 +48,8 @@ for (const role of ['server', 'client']) {
 }
 success(tsc, ['-p', path.join(packageRoot, 'tsconfig.json')]);
 
-const negative = path.join(__dirname, 'consumer-negative.ts');
-for (const [file, expected] of [['consumer-server.ts', 7], ['consumer-client.ts', 2], ['consumer-ts-server.ts', 3]]) {
+const negative = path.join(__dirname, 'typecheck-negative.ts');
+for (const [file, expected] of [['typecheck-ts-client.ts', 7], ['typecheck-ts-server.ts', 5]]) {
   const original = fs.readFileSync(path.join(__dirname, file), 'utf8');
   try {
     fs.writeFileSync(negative, original.replaceAll('@ts-expect-error', 'negative assertion'));
@@ -92,6 +92,19 @@ const reorderedOutput = path.join(generated, 'reordered.ts');
 fs.writeFileSync(reorderedInput, JSON.stringify(reordered));
 success(process.execPath, [cli, reorderedInput, '-o', reorderedOutput]);
 assert.equal(fs.readFileSync(reorderedOutput, 'utf8'), fs.readFileSync(path.join(generated, 'server.ts'), 'utf8'));
+
+const scopedOnly = JSON.parse(fs.readFileSync(path.join(generated, 'client.json'), 'utf8'));
+scopedOnly.operations = Object.fromEntries(Object.entries(scopedOnly.operations).filter(([, operation]) => {
+  const channelName = operation.channel.$ref.split('/').at(-1);
+  return scopedOnly.channels[channelName].address === '/chat';
+}));
+const scopedInput = path.join(generated, 'scoped-only.json');
+const scopedOutput = path.join(generated, 'scoped-only.ts');
+fs.writeFileSync(scopedInput, JSON.stringify(scopedOnly));
+success(process.execPath, [cli, scopedInput, '-o', scopedOutput]);
+const scopedSource = fs.readFileSync(scopedOutput, 'utf8');
+assert.match(scopedSource, /export namespace Chat \{/);
+assert.doesNotMatch(scopedSource, /export namespace Root \{/);
 
 console.log('Python → AsyncAPI JSON → CLI → Socket.IO TypeScript: passed');
 console.log('Negative compile assertions: 12 verified errors; invalid contract rejected');
