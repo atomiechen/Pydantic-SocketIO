@@ -1,6 +1,6 @@
 [project]
 name = "pydantic-socketio"
-version = "0.2.0"
+version = "0.2.1"
 description = "Pydantic validation and typed Python-to-TypeScript contracts for Socket.IO, with AsyncAPI export."
 readme = "README.md"
 authors = [

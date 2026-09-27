@@ -6,9 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-27
+
 ### Added
 
 - Export each server or client instance's current registrations with `asyncapi(title=..., version=...)`, while retaining `asyncapi_schema()`.
+- Add a runnable FastAPI and TypeScript example of AsyncAPI export, event types, namespaces, and acknowledgements.
 
 ## [0.2.0] - 2026-09-27
 
