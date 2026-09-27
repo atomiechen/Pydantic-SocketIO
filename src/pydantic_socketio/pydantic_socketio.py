@@ -4,12 +4,14 @@ import logging
 from typing import (
     Any,
     Callable,
+    Dict,
     List,
     Literal,
     Optional,
     Type,
     TypeVar,
     Union,
+    cast,
     overload,
 )
 
@@ -147,6 +149,15 @@ class PydanticSioToolset:
         self._operation_contracts = {}
         self._old_on = old_on
         self._role = role
+
+    def asyncapi(self, *, title: str, version: str) -> Dict[str, Any]:
+        """Export this endpoint's current registrations as AsyncAPI 3.1."""
+        from .asyncapi import asyncapi_schema
+
+        endpoint = cast(
+            Union[OldServer, OldAsyncServer, OldClient, OldAsyncClient], self
+        )
+        return asyncapi_schema(endpoint, title=title, version=version)
 
     @overload
     def register_emit(
@@ -640,6 +651,7 @@ def monkey_patch():
     setattr(OldServer, "call", Server.call)
     setattr(OldServer, "register_emit", Server.register_emit)
     setattr(OldServer, "validate_emit", Server.validate_emit)
+    setattr(OldServer, "asyncapi", Server.asyncapi)
 
     setattr(OldAsyncServer, "__init__", AsyncServer.__init__)
     setattr(OldAsyncServer, "on", AsyncServer.on)
@@ -647,6 +659,7 @@ def monkey_patch():
     setattr(OldAsyncServer, "call", AsyncServer.call)
     setattr(OldAsyncServer, "register_emit", AsyncServer.register_emit)
     setattr(OldAsyncServer, "validate_emit", AsyncServer.validate_emit)
+    setattr(OldAsyncServer, "asyncapi", AsyncServer.asyncapi)
 
     setattr(OldClient, "__init__", Client.__init__)
     setattr(OldClient, "on", Client.on)
@@ -654,6 +667,7 @@ def monkey_patch():
     setattr(OldClient, "call", Client.call)
     setattr(OldClient, "register_emit", Client.register_emit)
     setattr(OldClient, "validate_emit", Client.validate_emit)
+    setattr(OldClient, "asyncapi", Client.asyncapi)
 
     setattr(OldAsyncClient, "__init__", AsyncClient.__init__)
     setattr(OldAsyncClient, "on", AsyncClient.on)
@@ -661,5 +675,6 @@ def monkey_patch():
     setattr(OldAsyncClient, "call", AsyncClient.call)
     setattr(OldAsyncClient, "register_emit", AsyncClient.register_emit)
     setattr(OldAsyncClient, "validate_emit", AsyncClient.validate_emit)
+    setattr(OldAsyncClient, "asyncapi", AsyncClient.asyncapi)
 
     module_logger.debug("Monkey patched")

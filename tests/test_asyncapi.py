@@ -72,6 +72,44 @@ def run_with_sio(factory, check):
         pydantic_socketio.AsyncClient,
     ],
 )
+def test_instance_export_matches_function_and_reflects_new_registrations(factory):
+    def check(sio):
+        empty = sio.asyncapi(title="Empty", version="0")
+        assert empty["info"] == {"title": "Empty", "version": "0"}
+        assert empty["operations"] == {}
+        sio.register_emit("first", Request, namespace="/chat")
+        first = sio.asyncapi(title="Test", version="1.0")
+        assert first == pydantic_socketio.asyncapi_schema(
+            sio, title="Test", version="1.0"
+        )
+        sio.register_emit("second", Response, namespace="/chat")
+        second = sio.asyncapi(title="Test", version="1.0")
+        assert len(first["operations"]) == 1
+        assert len(second["operations"]) == 2
+        renamed = sio.asyncapi(title="Other", version="2.0")
+        assert renamed["info"] == {"title": "Other", "version": "2.0"}
+        assert renamed["operations"] == second["operations"]
+
+    run_with_sio(factory, check)
+
+
+def test_fastapi_server_inherits_instance_export():
+    sio = pydantic_socketio.FastAPISocketIO()
+    sio.register_emit("notice", Response, namespace="/chat")
+    document = sio.asyncapi(title="Test", version="1.0")
+    assert len(document["operations"]) == 1
+    assert document["x-pydantic-socketio"]["role"] == "server"
+
+
+@pytest.mark.parametrize(
+    "factory",
+    [
+        pydantic_socketio.Server,
+        pydantic_socketio.AsyncServer,
+        pydantic_socketio.Client,
+        pydantic_socketio.AsyncClient,
+    ],
+)
 def test_export_scoped_send_and_ack_shapes(factory):
     def check(sio):
         sio.register_emit("empty", Request, namespace="/chat", ack_type=None)
@@ -138,7 +176,7 @@ def test_export_server_receive_multiarg_and_bidirectional(factory):
         def receive(sid: str, first: Request, second: int) -> Tuple[int, str]:
             return first.nested.value + second, "ok"
 
-    document = pydantic_socketio.asyncapi_schema(sio, title="Test", version="1.0")
+    document = sio.asyncapi(title="Test", version="1.0")
     operations = list(document["operations"].values())
     assert len(operations) == 2
     assert {item["action"] for item in operations} == {"send", "receive"}
@@ -171,7 +209,7 @@ def test_export_client_receive(factory):
             def receive(data: Request) -> Response:
                 return Response(answer=str(data.nested.value))
 
-        document = pydantic_socketio.asyncapi_schema(sio, title="Test", version="1.0")
+        document = sio.asyncapi(title="Test", version="1.0")
         operation = next(iter(document["operations"].values()))
         assert operation["action"] == "receive"
         assert operation_message(document, operation)["payload"]["maxItems"] == 1
@@ -347,6 +385,7 @@ for factory in (socketio.Server, socketio.AsyncServer, socketio.Client, socketio
     sio = factory(async_mode='asgi') if factory is socketio.AsyncServer else factory()
     sio.register_emit('event', Data, namespace='/chat', ack_type=int)
     document = pydantic_socketio.asyncapi_schema(sio, title='Test', version='1.0')
+    assert sio.asyncapi(title='Test', version='1.0') == document
     assert len(document['operations']) == 1
     assert json.dumps(document)
 """
