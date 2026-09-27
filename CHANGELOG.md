@@ -6,12 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-27
+
 ### Added
 
 - Validate and serialize `call()` request data, and optionally validate its acknowledgement with `response_model`.
 - Validate event handler return annotations and serialize Pydantic model acknowledgements.
+- Declare namespace-specific outgoing payloads and ACK types with `register_emit()`.
+- Export registered event contracts as AsyncAPI 3.1 with `asyncapi_schema()`.
 
+### Security
 
+- Require `python-socketio>=5.16.2`, which also pulls in a patched Engine.IO version.
+- On Python 3.8/3.9, some optional client and FastAPI dependencies cannot receive their latest security fixes because the patched upstream releases require newer Python. The base package continues to support Python 3.8+.
 
 ## [0.1.3] - 2025-10-08
 

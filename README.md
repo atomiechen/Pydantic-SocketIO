@@ -2,10 +2,12 @@
 
 [![GitHub](https://img.shields.io/badge/github-Pydantic--SocketIO-blue?logo=github)](https://github.com/atomiechen/Pydantic-SocketIO)
 [![PyPI](https://img.shields.io/pypi/v/Pydantic--SocketIO?logo=pypi&logoColor=white)](https://pypi.org/project/pydantic-socketio/)
+[![npm codegen](https://img.shields.io/npm/v/%40pydantic-socketio%2Fcodegen?logo=npm&label=codegen)](https://www.npmjs.com/package/@pydantic-socketio/codegen)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/atomiechen/Pydantic-SocketIO)
 
 
-A Pydantic-enhanced Socket.IO library for Python, with FastAPI integration.
+Add Pydantic validation to Python Socket.IO, export an AsyncAPI contract, and
+generate typed events for a TypeScript Socket.IO client or server.
 
 
 ## Features
@@ -120,14 +122,15 @@ server = pydantic_socketio.AsyncServer(async_mode="asgi")
 async def answer(sid: str, data: Question) -> Answer:
     return Answer(value=data.value + 1)
 
-client = pydantic_socketio.AsyncClient()
-client.register_emit("question", Question)
-
 async def ask() -> None:
-    # Connect the client to the server before calling this function.
+    client = pydantic_socketio.AsyncClient()
+    client.register_emit("question", Question)
+    # Connect the client to the server before calling.
     result = await client.call("question", Question(value=3), response_model=Answer)
     assert result == Answer(value=4)
 ```
+
+On Python 3.8/3.9, create `AsyncClient` inside a running event loop, as shown.
 
 To scope outgoing validation to one namespace and declare its expected
 acknowledgement, use the optional `namespace` and `ack_type` arguments:
@@ -171,10 +174,16 @@ omitted in the document because they are not concrete events.
 
 ### TypeScript codegen
 
-The in-development [`@pydantic-socketio/codegen`](https://github.com/atomiechen/Pydantic-SocketIO/tree/main/packages/codegen)
-package reads that exported JSON and generates event types for the official
-`socket.io-client`. Export with `asyncapi_schema()` once, then run the codegen
-CLI on the JSON; the Python runtime does not need Node.js.
+[`@pydantic-socketio/codegen`](https://www.npmjs.com/package/@pydantic-socketio/codegen)
+reads an exported AsyncAPI JSON file and generates event types for the official
+Socket.IO TypeScript client or server. Export the contract from Python, then run:
+
+```sh
+npx @pydantic-socketio/codegen asyncapi.json -o src/socketio.generated.ts
+```
+
+See the [codegen guide](packages/codegen/README.md) for both client and server examples.
+The Python runtime does not need Node.js.
 
 
 ### Migration: Monkey Patching Original Socket.IO

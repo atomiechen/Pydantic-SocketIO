@@ -1,5 +1,6 @@
 """AsyncAPI projection from real local registrations."""
 
+import asyncio
 import json
 import subprocess
 import sys
@@ -50,6 +51,18 @@ def make_sio(factory):
     return factory()
 
 
+def run_with_sio(factory, check):
+    if factory is pydantic_socketio.AsyncClient:
+        # Engine.IO initializes an asyncio.Queue when the client is created.
+
+        async def run():
+            check(make_sio(factory))
+
+        asyncio.run(run())
+    else:
+        check(make_sio(factory))
+
+
 @pytest.mark.parametrize(
     "factory",
     [
@@ -60,46 +73,50 @@ def make_sio(factory):
     ],
 )
 def test_export_scoped_send_and_ack_shapes(factory):
-    sio = make_sio(factory)
-    sio.register_emit("empty", Request, namespace="/chat", ack_type=None)
-    sio.register_emit("single", Request, namespace="/chat", ack_type=Response)
-    sio.register_emit("multiple", Request, namespace="/chat", ack_type=Tuple[int, str])
-    sio.register_emit("unknown", Request, namespace="/chat")
+    def check(sio):
+        sio.register_emit("empty", Request, namespace="/chat", ack_type=None)
+        sio.register_emit("single", Request, namespace="/chat", ack_type=Response)
+        sio.register_emit(
+            "multiple", Request, namespace="/chat", ack_type=Tuple[int, str]
+        )
+        sio.register_emit("unknown", Request, namespace="/chat")
 
-    document = pydantic_socketio.asyncapi_schema(sio, title="Test", version="1.0")
-    assert document["asyncapi"] == "3.1.0"
-    assert document["info"] == {"title": "Test", "version": "1.0"}
-    expected_role = (
-        "server"
-        if factory in (pydantic_socketio.Server, pydantic_socketio.AsyncServer)
-        else "client"
-    )
-    assert document["x-pydantic-socketio"]["formatVersion"] == 1
-    assert document["x-pydantic-socketio"]["role"] == expected_role
-    assert len(document["operations"]) == 4
-    by_event = {
-        operation_message(document, operation)["name"]: operation
-        for operation in document["operations"].values()
-    }
-    for operation in by_event.values():
-        assert operation["action"] == "send"
-        assert operation["summary"].startswith("Send ")
-        assert channel(document, operation)["address"] == "/chat"
-        message = operation_message(document, operation)
-        assert message["x-pydantic-socketio"]["event"] == message["name"]
-        request = message["payload"]
-        assert request["type"] == "array"
-        assert request["minItems"] == request["maxItems"] == 1
-        nested_ref = request["prefixItems"][0]["properties"]["nested"]["$ref"]
-        assert nested_ref.startswith("#/components/schemas/")
-    assert "reply" not in by_event["unknown"]
-    assert by_event["unknown"]["x-pydantic-socketio"]["ack"] == "unspecified"
-    assert reply_message(document, by_event["empty"])["payload"]["maxItems"] == 0
-    assert reply_message(document, by_event["single"])["payload"]["maxItems"] == 1
-    assert reply_message(document, by_event["multiple"])["payload"]["maxItems"] == 2
-    assert by_event["single"]["reply"]["x-pydantic-socketio"]["ack"] is True
-    # Local component refs are valid even with nested Pydantic models.
-    assert document["components"]["schemas"]
+        document = pydantic_socketio.asyncapi_schema(sio, title="Test", version="1.0")
+        assert document["asyncapi"] == "3.1.0"
+        assert document["info"] == {"title": "Test", "version": "1.0"}
+        expected_role = (
+            "server"
+            if factory in (pydantic_socketio.Server, pydantic_socketio.AsyncServer)
+            else "client"
+        )
+        assert document["x-pydantic-socketio"]["formatVersion"] == 1
+        assert document["x-pydantic-socketio"]["role"] == expected_role
+        assert len(document["operations"]) == 4
+        by_event = {
+            operation_message(document, operation)["name"]: operation
+            for operation in document["operations"].values()
+        }
+        for operation in by_event.values():
+            assert operation["action"] == "send"
+            assert operation["summary"].startswith("Send ")
+            assert channel(document, operation)["address"] == "/chat"
+            message = operation_message(document, operation)
+            assert message["x-pydantic-socketio"]["event"] == message["name"]
+            request = message["payload"]
+            assert request["type"] == "array"
+            assert request["minItems"] == request["maxItems"] == 1
+            nested_ref = request["prefixItems"][0]["properties"]["nested"]["$ref"]
+            assert nested_ref.startswith("#/components/schemas/")
+        assert "reply" not in by_event["unknown"]
+        assert by_event["unknown"]["x-pydantic-socketio"]["ack"] == "unspecified"
+        assert reply_message(document, by_event["empty"])["payload"]["maxItems"] == 0
+        assert reply_message(document, by_event["single"])["payload"]["maxItems"] == 1
+        assert reply_message(document, by_event["multiple"])["payload"]["maxItems"] == 2
+        assert by_event["single"]["reply"]["x-pydantic-socketio"]["ack"] is True
+        # Local component refs are valid even with nested Pydantic models.
+        assert document["components"]["schemas"]
+
+    run_with_sio(factory, check)
 
 
 @pytest.mark.parametrize(
@@ -141,27 +158,29 @@ def test_export_server_receive_multiarg_and_bidirectional(factory):
     "factory", [pydantic_socketio.Client, pydantic_socketio.AsyncClient]
 )
 def test_export_client_receive(factory):
-    sio = make_sio(factory)
-    if factory is pydantic_socketio.AsyncClient:
+    def check(sio):
+        if factory is pydantic_socketio.AsyncClient:
 
-        @sio.on("update", namespace="/chat")
-        async def receive(data: Request) -> Response:
-            return Response(answer=str(data.nested.value))
+            @sio.on("update", namespace="/chat")
+            async def receive(data: Request) -> Response:
+                return Response(answer=str(data.nested.value))
 
-    else:
+        else:
 
-        @sio.on("update", namespace="/chat")
-        def receive(data: Request) -> Response:
-            return Response(answer=str(data.nested.value))
+            @sio.on("update", namespace="/chat")
+            def receive(data: Request) -> Response:
+                return Response(answer=str(data.nested.value))
 
-    document = pydantic_socketio.asyncapi_schema(sio, title="Test", version="1.0")
-    operation = next(iter(document["operations"].values()))
-    assert operation["action"] == "receive"
-    assert operation_message(document, operation)["payload"]["maxItems"] == 1
-    assert operation_message(document, operation)["x-pydantic-socketio"][
-        "arguments"
-    ] == [{"name": "data"}]
-    assert reply_message(document, operation)["payload"]["maxItems"] == 1
+        document = pydantic_socketio.asyncapi_schema(sio, title="Test", version="1.0")
+        operation = next(iter(document["operations"].values()))
+        assert operation["action"] == "receive"
+        assert operation_message(document, operation)["payload"]["maxItems"] == 1
+        assert operation_message(document, operation)["x-pydantic-socketio"][
+            "arguments"
+        ] == [{"name": "data"}]
+        assert reply_message(document, operation)["payload"]["maxItems"] == 1
+
+    run_with_sio(factory, check)
 
 
 def test_legacy_unscoped_registration_and_scoped_override():

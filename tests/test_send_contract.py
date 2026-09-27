@@ -46,27 +46,36 @@ def make_sio(factory):
     ],
 )
 def test_scoped_registration_overrides_legacy_unscoped_registration(factory):
-    sio = make_sio(factory)
-    assert sio.register_emit("shared", RootPayload) is RootPayload
-    assert (
-        sio.register_emit(
-            "shared", ChatPayload, namespace="/chat", ack_type=Tuple[int, str]
+    def check(sio):
+        assert sio.register_emit("shared", RootPayload) is RootPayload
+        assert (
+            sio.register_emit(
+                "shared", ChatPayload, namespace="/chat", ack_type=Tuple[int, str]
+            )
+            is ChatPayload
         )
-        is ChatPayload
-    )
 
-    sio.validate_emit("shared", RootPayload(value=1))
-    sio.validate_emit("shared", RootPayload(value=1), namespace="/other")
-    sio.validate_emit("shared", ChatPayload(text="ok"), namespace="/chat")
-    with pytest.raises(ValidationError):
-        sio.validate_emit("shared", RootPayload(value=1), namespace="/chat")
-    with pytest.raises(ValidationError):
-        sio.validate_emit("shared", ChatPayload(text="ok"), namespace="/other")
+        sio.validate_emit("shared", RootPayload(value=1))
+        sio.validate_emit("shared", RootPayload(value=1), namespace="/other")
+        sio.validate_emit("shared", ChatPayload(text="ok"), namespace="/chat")
+        with pytest.raises(ValidationError):
+            sio.validate_emit("shared", RootPayload(value=1), namespace="/chat")
+        with pytest.raises(ValidationError):
+            sio.validate_emit("shared", ChatPayload(text="ok"), namespace="/other")
 
-    unscoped = sio._operation_contracts[OperationKey(None, "shared", "send")]
-    scoped = sio._operation_contracts[OperationKey("/chat", "shared", "send")]
-    assert unscoped.ack_type is UNSPECIFIED
-    assert scoped.ack_type == Tuple[int, str]
+        unscoped = sio._operation_contracts[OperationKey(None, "shared", "send")]
+        scoped = sio._operation_contracts[OperationKey("/chat", "shared", "send")]
+        assert unscoped.ack_type is UNSPECIFIED
+        assert scoped.ack_type == Tuple[int, str]
+
+    if factory is pydantic_socketio.AsyncClient:
+        # Current Engine.IO creates its queue during initialization on Python 3.8/3.9.
+        async def run():
+            check(make_sio(factory))
+
+        asyncio.run(run())
+    else:
+        check(make_sio(factory))
 
 
 def test_decorator_and_explicit_default_namespace():
