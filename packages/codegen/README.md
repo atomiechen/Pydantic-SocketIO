@@ -1,17 +1,12 @@
 # TypeScript types for Pydantic-SocketIO
 
-`@pydantic-socketio/codegen` generates event types for the official
-`socket.io-client` from a Pydantic-SocketIO AsyncAPI document. Define events in
-Python, export the contract, then generate TypeScript types for event names,
-payloads, namespaces, and acknowledgements (ACKs).
+`@pydantic-socketio/codegen` turns a Pydantic-SocketIO AsyncAPI contract into event types for the official Socket.IO TypeScript client **or server**. Event names, namespace paths, payloads, handler argument names, and ACKs come from the Python registrations. The generated file contains types; it does not replace Socket.IO.
 
-Requires a Pydantic-SocketIO version with `asyncapi_schema()` and Node.js 22 or
-newer.
+Requires Pydantic-SocketIO with `asyncapi_schema()` and Node.js 18 or newer.
 
-## From Python to a typed client
+## Python server → TypeScript client
 
-Define the events on your Python server and export its contract after the
-handlers and outgoing events are registered:
+Register both incoming and outgoing events, then export the contract:
 
 ```python
 # contract.py
@@ -39,83 +34,100 @@ server.register_emit("notice", Notice, namespace="/chat")
 
 
 @server.on("ask", namespace="/chat")
-def ask(sid: str, data: Ask) -> Answer:
-    server.emit("notice", Notice(text=data.text), to=sid, namespace="/chat")
+def ask(sid: str, request: Ask) -> Answer:
+    server.emit("notice", Notice(text=request.text), to=sid, namespace="/chat")
     return Answer(accepted=True)
 
 
-document = pydantic_socketio.asyncapi_schema(
-    server, title="Chat API", version="1.0.0"
-)
-Path("asyncapi.json").write_text(json.dumps(document, indent=2))
+schema = pydantic_socketio.asyncapi_schema(server, title="Chat API", version="1.0.0")
+Path("asyncapi.json").write_text(json.dumps(schema, indent=2))
 ```
 
-Run `python contract.py` to write `asyncapi.json`. The exporter reads the
-registered operations on this server; it does not read Python source files or
-discover events on the client automatically.
-
-Generate the TypeScript file in your frontend project. If the frontend is in a
-different directory from `contract.py`, replace `asyncapi.json` below with the
-path to the exported file:
+Run `python contract.py`. In the TypeScript project, generate and use the types:
 
 ```sh
 npm install --save-dev @pydantic-socketio/codegen
 npx @pydantic-socketio/codegen asyncapi.json -o src/socketio.generated.ts
 ```
 
-The `/chat` Socket.IO namespace in the Python code becomes `Chat` in the
-generated file. `Chat.path` is `"/chat"`. Use its event interfaces with the
-Socket.IO client:
-
 ```ts
 import { io, type Socket } from "socket.io-client";
-import { Chat } from "./socketio.generated";
+import { Chat, type Notice, type Ask, type Answer } from "./socketio.generated";
 
-const socket: Socket<
-  Chat.ServerToClientEvents,
-  Chat.ClientToServerEvents
-> = io(Chat.path);
+const socket: Socket<Chat.ServerToClientEvents, Chat.ClientToServerEvents> = io(Chat.path);
+// /chat becomes Chat; Chat.path is "/chat".
 
-socket.on("notice", (notice) => {
-  console.log(notice.text);
-});
-
-socket.emit("ask", { text: "Hello" }, (answer) => {
+socket.on("notice", (notice: Notice) => console.log(notice.text));
+socket.emit("ask", { text: "Hello" } satisfies Ask, (answer: Answer) => {
   console.log(answer.accepted);
 });
 ```
 
-The server's `@server.on("ask")` handler supplies `ClientToServerEvents`;
-`register_emit("notice", ...)` supplies `ServerToClientEvents`. The handler's
-`Answer` return annotation supplies the `ask` ACK type. The example assumes
-your Socket.IO server is available at the same origin as the frontend.
+The server's `ask` handler supplies `ClientToServerEvents`, its `Answer` return annotation supplies the ACK type, and `register_emit("notice", ...)` supplies `ServerToClientEvents`.
 
-## Namespaces and event contracts
+## Python client → TypeScript server
 
-The generated names come from Socket.IO namespace paths:
+The same command works when Python is the client. Its outgoing registrations become `ClientToServerEvents`; its handlers become `ServerToClientEvents`:
 
-| Python namespace | Generated TypeScript namespace |
-| --- | --- |
-| `/` (default) | `Root` |
-| `/chat` | `Chat` |
-| `/admin` | `Admin` |
+```python
+# client_contract.py
+import json
+from pathlib import Path
 
-Each namespace has its own `path`, `ServerToClientEvents`, and
-`ClientToServerEvents`. If your contract uses several namespaces, import the
-corresponding generated names and create a typed socket for each one. When
-exporting a Python *client* contract, its outgoing registrations map to
-`ClientToServerEvents` and its handlers map to `ServerToClientEvents`.
+from pydantic import BaseModel
+import pydantic_socketio
 
-An outgoing `register_emit()` without `namespace` applies across namespaces;
-the generator also exposes those default types under `Unscoped`. A registration
-for a specific namespace overrides the default type there. Declare
-`ack_type` on outgoing registrations or a return annotation on handlers to
-give ACKs a known type. An undeclared ACK remains unknown.
 
-## Keep types in sync
+class Ask(BaseModel):
+    text: str
 
-After changing Python event names, models, namespaces, or ACK types, export
-`asyncapi.json` again and rerun codegen. Type-check the frontend as part of
-your normal build so calls that no longer match the contract fail early.
 
-`--output` is equivalent to `-o`; use `--help` for the CLI syntax.
+class Answer(BaseModel):
+    accepted: bool
+
+
+class Notice(BaseModel):
+    text: str
+
+
+client = pydantic_socketio.Client()
+client.register_emit("ask", Ask, namespace="/chat", ack_type=Answer)
+
+
+@client.on("notice", namespace="/chat")
+def notice(message: Notice) -> Answer:
+    print(message.text)
+    return Answer(accepted=True)
+
+
+schema = pydantic_socketio.asyncapi_schema(client, title="Chat API", version="1.0.0")
+Path("asyncapi.json").write_text(json.dumps(schema, indent=2))
+```
+
+Run `python client_contract.py`, then run the same `npx @pydantic-socketio/codegen asyncapi.json -o src/socketio.generated.ts` command. On the TypeScript side, use the generated interfaces with the official server:
+
+```ts
+import { Server } from "socket.io";
+import { Chat } from "./socketio.generated";
+
+const server = new Server<Chat.ClientToServerEvents, Chat.ServerToClientEvents>(3000);
+server.of(Chat.path).on("connection", (socket) => {
+  socket.on("ask", (request, ack) => {
+    console.log(request.text); // Ask.text is a string
+    ack?.({ accepted: true }); // Answer
+    socket.emit("notice", { text: "Received" }, (answer) => {
+      console.log(answer.accepted); // boolean
+    });
+  });
+});
+```
+
+A Python client can connect to that server and call `ask` with `response_model=Answer` to validate the ACK at runtime. The generated TypeScript describes both directions; no second generator or wrapper is needed.
+
+## Namespaces and regeneration
+
+`/` becomes `Root`, `/chat` becomes `Chat`, and `/admin` becomes `Admin`. Each generated namespace has `path`, `ClientToServerEvents`, and `ServerToClientEvents`. Create a typed Socket.IO endpoint for each namespace you use. Unscoped outgoing registrations also appear under `Unscoped`; a registration for a specific namespace overrides that fallback there.
+
+Named Pydantic models are exported as named TypeScript declarations such as `Ask`, `Answer`, and `Notice`. Primitive event arguments stay inline, and Python handler argument names appear in tuple labels. If two different models share a name, codegen adds event context so their types remain distinct. The JSON contract is sufficient to understand the generated file without Python source access.
+
+After changing event names, models, namespaces, or ACK types, export `asyncapi.json` again, rerun codegen, and type-check the TypeScript project. Use `--help` for CLI syntax.

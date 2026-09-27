@@ -7,5 +7,5 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext"
   },
-  "include": ["test/consumer-server.ts", "test/consumer-client.ts", "test/generated/*.ts"]
+  "include": ["test/consumer-server.ts", "test/consumer-client.ts", "test/consumer-ts-server.ts", "test/generated/*.ts"]
 }

@@ -31,6 +31,7 @@ class OperationContract:
     # expands tuple values into multiple ACK arguments and None into zero.
     # UNSPECIFIED means no type was declared; it does not mean no ACK occurs.
     ack_type: Any = UNSPECIFIED
+    payload_names: Tuple[str, ...] = ()
 
 
 def send_contract(
@@ -77,4 +78,9 @@ def receive_contract(
             ack_type = UNSPECIFIED
         elif ack_type is not None:
             ack_type = hints.get("return", ack_type)
-    return OperationContract(key, payload_types, ack_type)
+    payload_names = (
+        tuple(parameter.name for parameter in positional[prefix:])
+        if event not in ("connect", "disconnect")
+        else ()
+    )
+    return OperationContract(key, payload_types, ack_type, payload_names)

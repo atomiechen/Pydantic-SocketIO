@@ -20,9 +20,9 @@ function pointer(document, reference) {
 }
 
 function safeName(text) {
-  const words = text.normalize('NFKD').replace(/[^A-Za-z0-9]+/g, ' ').trim().split(/\s+/);
+  const words = text.normalize('NFKD').replace(/[^A-Za-z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean);
   const name = words.map((word) => word[0].toUpperCase() + word.slice(1)).join('');
-  return /^[A-Za-z_]/.test(name) ? name : `Namespace${name}`;
+  return !name ? 'Root' : /^[A-Za-z_]/.test(name) ? name : `Namespace${name}`;
 }
 
 function namespaceName(address, used) {
@@ -47,29 +47,158 @@ function assertDocument(document) {
   }
 }
 
+function plainType(schema) {
+  if (!schema || typeof schema !== 'object' || schema.$ref || schema.enum || schema.const !== undefined) return null;
+  if (Array.isArray(schema.anyOf)) {
+    const values = schema.anyOf.map(plainType);
+    return values.every(Boolean) ? values.join(' | ') : null;
+  }
+  if (Array.isArray(schema.type)) {
+    const values = schema.type.map((type) => plainType({ type }));
+    return values.every(Boolean) ? values.join(' | ') : null;
+  }
+  const scalar = { integer: 'number', number: 'number', string: 'string', boolean: 'boolean', null: 'null' }[schema.type];
+  if (scalar) return scalar;
+  if (schema.type === 'array' && schema.items) {
+    const item = plainType(schema.items);
+    return item ? `(${item})[]` : null;
+  }
+  return null;
+}
+
+function modelRegistry(document) {
+  const components = document.components.schemas;
+  const records = [];
+  const byComponent = new Map();
+  const roots = [];
+
+  function fingerprint(schema, seen = new Set()) {
+    if (Array.isArray(schema)) return schema.map((part) => fingerprint(part, seen));
+    if (!schema || typeof schema !== 'object') return schema;
+    if (schema.$ref) {
+      const reference = schema.$ref;
+      if (seen.has(reference)) return { $recursive: pointer(document, reference).title || reference };
+      return fingerprint(pointer(document, reference), new Set([...seen, reference]));
+    }
+    return Object.fromEntries(Object.entries(schema).sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => [key, fingerprint(value, seen)]));
+  }
+
+  function add(schema, context, component) {
+    const title = typeof schema.title === 'string' && schema.title.trim() ? schema.title : null;
+    const base = safeName(title || context);
+    const key = `${base}:${JSON.stringify(fingerprint(schema))}`;
+    const record = { schema, context, component, base, key, name: null };
+    records.push(record);
+    if (component) byComponent.set(component, record);
+    return record;
+  }
+
+  for (const [name, schema] of Object.entries(components).sort(([a], [b]) => a.localeCompare(b))) {
+    add(schema, name, name);
+  }
+  function registerRoot(schema, context) {
+    if (plainType(schema)) return;
+    if (schema.$ref) return;
+    roots.push(add(schema, context, null));
+    function describeReferences(value, trail, seen = new Set()) {
+      if (Array.isArray(value)) {
+        value.forEach((part, index) => describeReferences(part, `${trail}${index + 1}`, seen));
+      } else if (value && typeof value === 'object') {
+        if (value.$ref) {
+          const component = value.$ref.split('/').at(-1).replace(/~1/g, '/').replace(/~0/g, '~');
+          const target = byComponent.get(component);
+          if (!target) throw new Error(`Unknown schema reference: ${value.$ref}`);
+          const suggestion = `${safeName(schema.title || context)}${safeName(trail)}`;
+          if (target.context === component || suggestion.localeCompare(target.context) < 0) {
+            target.context = suggestion;
+          }
+          if (!seen.has(component)) describeReferences(target.schema, trail, new Set([...seen, component]));
+        } else {
+          for (const [key, part] of Object.entries(value)) {
+            describeReferences(part, key === 'properties' ? trail : `${trail}${safeName(key)}`, seen);
+          }
+        }
+      }
+    }
+    describeReferences(schema, '');
+  }
+  function resolve(reserved) {
+    const groups = new Map();
+    for (const record of records) {
+      if (!groups.has(record.key)) groups.set(record.key, []);
+      groups.get(record.key).push(record);
+    }
+    const unique = [...groups.values()].map((group) => {
+      group.sort((a, b) => a.context.localeCompare(b.context));
+      return { ...group[0], members: group };
+    }).sort((a, b) => a.base.localeCompare(b.base) || a.key.localeCompare(b.key));
+    const byBase = new Map();
+    for (const item of unique) byBase.set(item.base, (byBase.get(item.base) || 0) + 1);
+    const used = new Set(['PydanticSocketIOModels', ...reserved]);
+    for (const item of unique) {
+      const contextName = safeName(item.context.replace(/(?:Payload|Ack)Argument\d+$/, '').replace(/Item$/, ''));
+      const candidate = byBase.get(item.base) === 1
+        ? (reserved.has(item.base) ? `${item.base}Model` : item.base)
+        : contextName.endsWith(item.base) ? contextName : `${item.base}${contextName}`;
+      let name = candidate;
+      if (used.has(name)) {
+        const digest = require('node:crypto').createHash('sha256').update(item.key).digest('hex').slice(0, 8);
+        name = `${candidate}${digest}`;
+      }
+      used.add(name);
+      item.name = name;
+      for (const member of item.members) member.name = name;
+    }
+    return unique;
+  }
+  function rewrite(schema) {
+    if (Array.isArray(schema)) return schema.map(rewrite);
+    if (!schema || typeof schema !== 'object') return schema;
+    if (schema.$ref) {
+      const component = schema.$ref.split('/').at(-1).replace(/~1/g, '/').replace(/~0/g, '~');
+      const record = byComponent.get(component);
+      if (!record) throw new Error(`Unknown schema reference: ${schema.$ref}`);
+      return { $ref: `#/definitions/${record.name}` };
+    }
+    const result = Object.fromEntries(Object.entries(schema).map(([key, value]) => [key, rewrite(value)]));
+    if (plainType(result)) delete result.title;
+    return result;
+  }
+  function nameOf(schema, context) {
+    const scalar = plainType(schema);
+    if (scalar) return scalar;
+    if (schema.$ref) {
+      const component = schema.$ref.split('/').at(-1).replace(/~1/g, '/').replace(/~0/g, '~');
+      return byComponent.get(component).name;
+    }
+    const root = roots.find((item) => item.schema === schema && item.context === context);
+    if (!root) throw new Error(`Missing model for ${context}`);
+    return root.name;
+  }
+  async function declarations(unique) {
+    if (!unique.length) return '';
+    const definitions = Object.fromEntries(unique.map((item) => [item.name, {
+      ...rewrite(item.schema), title: item.name,
+    }]));
+    const source = await compile({
+      title: 'PydanticSocketIOModels',
+      anyOf: unique.map((item) => ({ $ref: `#/definitions/${item.name}` })),
+      definitions,
+    }, 'PydanticSocketIOModels', { bannerComment: '', additionalProperties: false });
+    return source.replace(/^export type PydanticSocketIOModels =[\s\S]*?;\n/, '').trim();
+  }
+  return { registerRoot, resolve, nameOf, declarations };
+}
+
 async function generate(document) {
   assertDocument(document);
   const role = document[EXTENSION].role;
-  const models = [];
-  let modelNumber = 0;
+  const registry = modelRegistry(document);
 
-  async function valueType(schema) {
-    const number = ++modelNumber;
-    const name = `Value${number}`;
-    const namespace = `Model${number}`;
-    const source = await compile(
-      { ...schema, title: name, components: { schemas: document.components.schemas } },
-      name,
-      { bannerComment: '', additionalProperties: false },
-    );
-    models.push(`export namespace ${namespace} {\n${source}\n}`);
-    return `${namespace}.${name}`;
-  }
-
-  async function argumentsType(schema) {
+  function argumentsType(schema, context, names) {
     if (Array.isArray(schema?.anyOf)) {
-      const variants = [];
-      for (const variant of schema.anyOf) variants.push(await argumentsType(variant));
+      const variants = schema.anyOf.map((variant) => argumentsType(variant, context, names));
       return variants.join(' | ');
     }
     if (schema?.type !== 'array') throw new Error('Socket.IO arguments must be an array schema');
@@ -77,12 +206,31 @@ async function generate(document) {
       if (schema.minItems !== schema.prefixItems.length || schema.maxItems !== schema.prefixItems.length) {
         throw new Error('Socket.IO argument tuple has inconsistent arity');
       }
-      const items = [];
-      for (const item of schema.prefixItems) items.push(await valueType(item));
+      if (names && names.length !== schema.prefixItems.length) {
+        throw new Error(`${context}: argument names do not match the payload arity`);
+      }
+      const items = schema.prefixItems.map((item, index) => {
+        const name = names?.[index]?.name;
+        const type = registry.nameOf(item, `${context}Argument${index + 1}`);
+        const label = name && /^[A-Za-z_$][\w$]*$/.test(name) ? `${name}: ` : '';
+        return label + type;
+      });
       return `[${items.join(', ')}]`;
     }
-    if (schema.items) return `${await valueType(schema.items)}[]`;
+    if (schema.items) return `${registry.nameOf(schema.items, `${context}Item`)}[]`;
     return 'unknown[]';
+  }
+
+  function registerArguments(schema, context) {
+    if (Array.isArray(schema?.anyOf)) {
+      for (const variant of schema.anyOf) registerArguments(variant, context);
+    } else if (Array.isArray(schema?.prefixItems)) {
+      for (const [index, item] of schema.prefixItems.entries()) {
+        registry.registerRoot(item, `${context}Argument${index + 1}`);
+      }
+    } else if (schema?.items) {
+      registry.registerRoot(schema.items, `${context}Item`);
+    }
   }
 
   const operations = [];
@@ -102,19 +250,36 @@ async function generate(document) {
     if (typeof event !== 'string' || !event) throw new Error(`${id}: missing event name`);
     operations.push({ id, operation, channel, message, event });
   }
+  operations.sort((a, b) => a.id.localeCompare(b.id));
 
   const namespaces = new Map([...addresses].sort().map((address) => [address, {
     ClientToServerEvents: new Map(), ServerToClientEvents: new Map(),
   }]));
   const unscoped = { ClientToServerEvents: new Map(), ServerToClientEvents: new Map() };
   for (const { id, operation, channel, message, event } of operations) {
-    const payload = await argumentsType(message.payload);
+    registerArguments(message.payload, `${safeName(channel.address || 'All')}${safeName(event)}Payload`);
+    if (operation.reply) {
+      registerArguments(pointer(document, operation.reply.messages[0].$ref).payload,
+        `${safeName(channel.address || 'All')}${safeName(event)}Ack`);
+    }
+  }
+  const reservedNames = new Set([...addresses].map((address) => address === '/' ? 'Root' : safeName(address)));
+  reservedNames.add('Unscoped');
+  const uniqueModels = registry.resolve(reservedNames);
+  for (const { id, operation, channel, message, event } of operations) {
+    const context = `${safeName(channel.address || 'All')}${safeName(event)}Payload`;
+    const metadata = message[EXTENSION]?.arguments;
+    if (metadata !== undefined && (!Array.isArray(metadata) || metadata.some((item) => typeof item?.name !== 'string'))) {
+      throw new Error(`${id}: invalid argument names`);
+    }
+    const payload = argumentsType(message.payload, context, metadata);
     let ack;
     if (operation.reply) {
       if (operation.reply[EXTENSION]?.ack !== true || operation.reply.messages?.length !== 1) {
         throw new Error(`${id}: reply is not a Socket.IO ACK`);
       }
-      ack = await argumentsType(pointer(document, operation.reply.messages[0].$ref).payload);
+      ack = argumentsType(pointer(document, operation.reply.messages[0].$ref).payload,
+        `${safeName(channel.address || 'All')}${safeName(event)}Ack`);
     } else if (operation[EXTENSION]?.ack !== 'unspecified') {
       throw new Error(`${id}: missing ACK declaration`);
     }
@@ -143,10 +308,11 @@ async function generate(document) {
   }
 
   const output = [
-    '// Generated from a Pydantic-SocketIO AsyncAPI contract. Do not edit. ',
-    '// Use with Socket<ServerToClientEvents, ClientToServerEvents> from socket.io-client.',
+    '// Generated from a Pydantic-SocketIO AsyncAPI contract. Do not edit.',
+    '// Use with Socket<ServerToClientEvents, ClientToServerEvents> or Server<ClientToServerEvents, ServerToClientEvents>.',
   ];
-  output.push(...models);
+  const declarations = await registry.declarations(uniqueModels);
+  if (declarations) output.push(declarations);
   const used = new Set();
   function render(name, sides, path) {
     output.push(`export namespace ${name} {`);

@@ -13,14 +13,15 @@
     "pydantic-socketio-codegen": "bin/generate.cjs"
   },
   "files": ["bin", "src"],
-  "engines": {"node": ">=22"},
+  "engines": {"node": ">=18"},
   "scripts": {
-    "test": "node test/e2e.cjs"
+    "test": "node test/e2e.cjs && node test/live.cjs"
   },
   "dependencies": {
     "json-schema-to-typescript": "16.0.0"
   },
   "devDependencies": {
+    "socket.io": "4.8.3",
     "socket.io-client": "4.8.3",
     "typescript": "5.9.3"
   }

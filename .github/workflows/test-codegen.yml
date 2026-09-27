@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: ["22", "24"]
+        node-version: ["18", "20", "22", "24", "26"]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -48,7 +48,6 @@ jobs:
       - run: npm ci --prefix packages/codegen
       - run: npm test --prefix packages/codegen
       - name: Verify npm tarball installation
-        if: matrix.node-version == '24'
         run: |
           npm pack --dry-run --json ./packages/codegen > "$RUNNER_TEMP/codegen-pack.json"
           npm pack ./packages/codegen --pack-destination "$RUNNER_TEMP"
@@ -60,6 +59,9 @@ jobs:
           "$RUNNER_TEMP/codegen-install/node_modules/.bin/pydantic-socketio-codegen" \
             packages/codegen/test/generated/server.json -o "$RUNNER_TEMP/socketio.generated.ts"
           test -s "$RUNNER_TEMP/socketio.generated.ts"
+          "$RUNNER_TEMP/codegen-install/node_modules/.bin/pydantic-socketio-codegen" \
+            packages/codegen/test/generated/client.json -o "$RUNNER_TEMP/client.generated.ts"
+          test -s "$RUNNER_TEMP/client.generated.ts"
       - name: Keep Python distributions free of npm files
         if: matrix.node-version == '24'
         run: |
