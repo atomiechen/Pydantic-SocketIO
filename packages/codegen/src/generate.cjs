@@ -109,7 +109,8 @@ function modelRegistry(document) {
           const component = value.$ref.split('/').at(-1).replace(/~1/g, '/').replace(/~0/g, '~');
           const target = byComponent.get(component);
           if (!target) throw new Error(`Unknown schema reference: ${value.$ref}`);
-          const suggestion = `${safeName(schema.title || context)}${safeName(trail)}`;
+          const operationContext = context.replace(/(?:Payload|Ack)Argument\d+$/, '');
+          const suggestion = `${safeName(operationContext)}${safeName(trail)}`;
           if (target.context === component || suggestion.localeCompare(target.context) < 0) {
             target.context = suggestion;
           }
@@ -137,7 +138,7 @@ function modelRegistry(document) {
     for (const item of unique) byBase.set(item.base, (byBase.get(item.base) || 0) + 1);
     const used = new Set(['PydanticSocketIOModels', ...reserved]);
     for (const item of unique) {
-      const contextName = safeName(item.context.replace(/(?:Payload|Ack)Argument\d+$/, '').replace(/Item$/, ''));
+      const contextName = safeName(item.context.replace(/(?:Payload|Ack)Argument\d+$/, ''));
       const candidate = byBase.get(item.base) === 1
         ? (reserved.has(item.base) ? `${item.base}Model` : item.base)
         : contextName.endsWith(item.base) ? contextName : `${item.base}${contextName}`;

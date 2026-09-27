@@ -58,6 +58,12 @@ numeric_status = create_model("Status", __module__="numeric_status", value=(int,
 text_status = create_model("Status", __module__="text_status", value=(str, ...))
 server.register_emit("numeric_status", numeric_status, namespace="/chat")
 server.register_emit("text_status", text_status, namespace="/chat")
+numeric_item = create_model("Item", __module__="numeric_item", value=(int, ...))
+text_item = create_model("Item", __module__="text_item", value=(str, ...))
+numeric_container = create_model("Container", item=(numeric_item, ...))
+text_container = create_model("Container", item=(text_item, ...))
+server.register_emit("numeric_container", numeric_container, namespace="/chat")
+server.register_emit("text_container", text_container, namespace="/chat")
 
 client = pydantic_socketio.Client()
 

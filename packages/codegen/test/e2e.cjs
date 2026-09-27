@@ -42,6 +42,8 @@ for (const role of ['server', 'client']) {
     assert.match(first, /payload: Request/);
     assert.match(first, /export interface ChatNumericStatus \{\s+value: number;/);
     assert.match(first, /export interface ChatTextStatus \{\s+value: string;/);
+    assert.match(first, /export interface ChatNumericContainerItem \{\s+value: number;/);
+    assert.match(first, /export interface ChatTextContainerItem \{\s+value: string;/);
   }
 }
 success(tsc, ['-p', path.join(packageRoot, 'tsconfig.json')]);
